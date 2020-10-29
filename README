@@ -1,0 +1,29 @@
+This project contains three files, as requested by the assignment for the capstone project 
+for Harvard's EdX Data Science program.  These files are:
+
+     -- MovieLensWriteup.Rmd  ## The markdown file to generate the figures, analysis, and 
+        pdf version of the writeup.  Contains all the R code to generate the analysis, 
+        figures, and final model.
+  
+     -- MovieLensWriteup.pdf  ## *.pdf writeup file. The most human-readable version. 
+        Contains figures, text, and some of the R code required to generate the figures and 
+        models, but some was left out for improved readability. In particular, retitive code 
+        was omitted where possible.
+  
+     -- MovieLensWriteup.R  ## R script version created with knitr::purl(filename, documenation=2). 
+       Contains all the same text and code as the *.Rmd version, but in the format of an R 
+       script file, with the explanations and knitr-specific code commented out.  Can be used to 
+       create the final model and all intervening analysis and figures, just as the *.Rmd file.
+  
+The code is intended to run on R version 4.0.2 (2020-06-22) "Taking Off Again", tidyverse 1.3.0, 
+ggplot2 3.3.2, dplyr 1.0.2. The code is not guaranteed to be backwards-compatible, so may 
+generate errors or unexpected results if you try to run the code with an older version of R. 
+Also, if you generate the *.pdf document on your own system, please be aware that it is set up 
+for caching as much data as possible and will therefore create files on your system. Depending 
+on your available memory, some of these files may be considered "large".
+
+The writeup is quite long (50+ pages, though there are also many figures), so for a faster read, 
+the Summary, Results and Conclusion should be sufficient to get the gist of the work done.  Many 
+lines of code were not included in the final *.pdf document, so if you have any questions about 
+how a figure was created or a result obtained, the complete code is included in both the *.Rmd 
+document and in the *.R document.  
