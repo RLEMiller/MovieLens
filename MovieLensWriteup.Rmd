@@ -1,8 +1,10 @@
 ---
-title: "MovieLens Rating Prediction Using Machine Learning"
+title: "MovieLens Rating Prediction Using SVD and Funk SVD Ensemble Models"
 author: "Rebecca L.E. Miller"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: pdf_document
+output: 
+  pdf_document: 
+    keep_tex: yes
 ---
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE, echo=FALSE}
@@ -499,17 +501,17 @@ and we estimate $\hat{\mu}$ as the global mean of ratings in our training set, $
 
 
 ## Adding User and Movie Effects
-The RMSE of 1.06 obtained with our simplest model was not a bad result for a single-valued prediction. If we follow the course material and the methods discussed by the "BellKor's Pragmatic Chaos" team for the Netflix Prize, \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_BellKor.pdf} \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_BigChaos.pdf} \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_PragmaticTheory.pdf} we can try to improve our model by adding a movie effect and a user effect, $b_{i}$ and $b_{u}$, respectively.
+The RMSE of 1.06 obtained with our simplest model was not a bad result for a single-valued prediction. If we follow the course material and the methods discussed by the "BellKor's Pragmatic Chaos" team for the Netflix Prize, \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_BellKor.pdf} \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_BigChaos.pdf} \footnote{https://netflixprize.com/assets/GrandPrize2009\_BPC\_PragmaticTheory.pdf} we can try to improve our model by adding a movie effect and a user effect, $b_{i}$ and $b_{u}$, respectively.  
 
 $$
 Y_{u,i} = \mu + b_{i} + b_{u} + \varepsilon_{u,i}
 $$
-We can find a first estimate of $b_{i}$ and $b_{u}$ by approximating with the movie-wise or user-wise means of the residuals. 
+We can find a first estimate of $b_{i}$ and $b_{u}$ by approximating with the movie-wise or user-wise means of the residuals.  
 
 $$\hat{b}_{i} = \frac{1}{N_{i}}\sum_{u}( y_{u,i} - \hat{\mu})$$
 $$\hat{b}_{u} = \frac{1}{N_{u}}\sum_{i}(y_{u,i} - \hat{\mu} - \hat{b}_{i})$$
 
-We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects the resultant RMSE.
+We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects the resultant RMSE.  
 
 
 ```{r MovieUserEffects, cache=TRUE}
@@ -518,10 +520,12 @@ We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects 
   user_mus <- train %>%
     group_by(userId) %>%
     summarize( b_u = mean( rating - mu))
+
   predicted_ratings <- mu + test %>%
     left_join(user_mus, by = 'userId') %>%
     pull(b_u)
-  results <- results %>% 
+
+    results <- results %>% 
     add_row(method = "User Effect Only", 
             RMSE = RMSE(test$rating, predicted_ratings))
 
@@ -530,11 +534,13 @@ We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects 
     left_join(user_mus, by = 'userId') %>%
     group_by(movieId) %>%
     summarize(b_i = mean(rating - mu - b_u))
+  
   predicted_ratings <- test %>%
     left_join(user_mus, by = 'userId') %>%
     left_join(movie_mus, by = 'movieId') %>%
     mutate(prediction = mu + b_i + b_u) %>%
     pull(prediction)
+  
   results <- results %>% 
     add_row( method = "User Then Movie Effect",
              RMSE = RMSE(test$rating, predicted_ratings))
@@ -550,6 +556,7 @@ We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects 
   movie_effect_predicted_ratings <- mu + test %>%
     left_join(movie_mus, by = 'movieId') %>%
     pull(b_i)
+  
   RMSE(test$rating, movie_effect_predicted_ratings)
   results <- results %>% add_row(method = "Movie Effect Only", 
                                  RMSE = RMSE(test$rating, movie_effect_predicted_ratings))
@@ -561,32 +568,40 @@ We can also test whether the order of estimation of $b_{i}$ and $b_{u}$ affects 
     left_join(movie_mus, by = 'movieId') %>%
     group_by(userId) %>%
     summarize(b_u = mean(rating - mu - b_i))
+  
   predicted_ratings <- test %>%
     left_join(movie_mus, by = 'movieId') %>%
     left_join(user_mus, by = 'userId') %>%
     mutate(prediction = mu + b_i + b_u) %>%
     pull(prediction)
+  
   results <- results %>% add_row( method = "Movie then User Effect",
                                   RMSE = RMSE(test$rating, predicted_ratings))
   kable(results)
 
 ```
 
-We see that the order of calculation of user and movie baseline effects does matter, with an improved result with calculating the movie effect first, which was the same order as the coursework. 
+We see that the order of calculation of user and movie baseline effects does matter, with an improved result with calculating the movie effect first, which was the same order as the coursework.  
 
-Following the same analytical path of the coursework, we can examine the largest deviations from our predicted ratings, $\hat{y}_{u,i} = \mu + \hat{b}_{i} + \hat{b}_{u}$.
+Following the same analytical path of the coursework, we can examine the largest deviations from our predicted ratings, $\hat{y}_{u,i} = \mu + \hat{b}_{i} + \hat{b}_{u}$.  
 
 ```{r RegularizationJustificationAnalysis, cache=TRUE}
   # Do the largest errors in prediction on the test set correlate with having 
   # few ratings in the train set?
+
+  # Number of ratings per user
   n_us <- train %>%
     left_join(user_mus, by = 'userId') %>%
     group_by(userId) %>%
     summarize( n_u = n())
+
+  # Number of ratings per movie
   n_is <- train %>%
     left_join(movie_mus, by = 'movieId') %>%
     group_by(movieId) %>%
     summarize( n_i = n())
+  
+  # Highest errors with associated samples sizes
   test %>% left_join(movie_mus, by = 'movieId') %>%
     left_join(user_mus, by = 'userId') %>%
     left_join(n_us, by = 'userId') %>%
@@ -601,15 +616,16 @@ Following the same analytical path of the coursework, we can examine the largest
 Interestingly enough, none of the movies with just one rating appear in our highest error list. In fact, our results don't really seem to justify the regularization step that both the "BellKor's Pragmatic Chaos" team and our coursework took. We can look at our data a bit differently and see how large the error was among our ratings with the lowest number of ratings per user or movie.
 
 ```{r errorInLowNs, cache=TRUE}
-    test %>% left_join(movie_mus, by = 'movieId') %>%
-      left_join(user_mus, by = 'userId') %>%
-      left_join(n_us, by = 'userId') %>%
-      left_join(n_is, by = 'movieId') %>%
-      mutate( prediction = mu + b_i + b_u) %>%
-      mutate( error = abs(rating - prediction) ) %>%
-      filter( n_i <= 10) %>%
-      group_by( n_i ) %>%
-      summarize( avg = mean(error))
+  # Smallest sample sizes with associated error
+  test %>% left_join(movie_mus, by = 'movieId') %>%
+    left_join(user_mus, by = 'userId') %>%
+    left_join(n_us, by = 'userId') %>%
+    left_join(n_is, by = 'movieId') %>%
+    mutate( prediction = mu + b_i + b_u) %>%
+    mutate( error = abs(rating - prediction) ) %>%
+    filter( n_i <= 10) %>%
+    group_by( n_i ) %>%
+    summarize( avg = mean(error))
 
   # Clean up
   rm( n_is, n_us)
@@ -641,19 +657,21 @@ The regularization scheme used in the BellKor solution and in the coursework pen
     geom_point() +
     labs(title="Movie Effect, b_i", y="RMSE", x="lambda")
   
-  min(regularized_rmses)  #[1] 0.9441152
+  min(regularized_rmses)  
   
-  L_i <- lambdas[which.min(regularized_rmses)]  #1.75
+  L_i <- lambdas[which.min(regularized_rmses)]  
   L_i
 ```
 
-And we can go through the same process to regularize the user effects.
+And we can go through the same process to regularize the user effects.  
+
 ```{r regularizationMovieandUser, echo=FALSE, cache=TRUE, message=FALSE, fig.height=3, fig.cap="Regularization curves for movie effect and user effect."}
   lambdas <- seq(2.5,6,0.25)
   regularized_rmses <- sapply(lambdas, function(L){
     movie_mus <- train %>%
       group_by(movieId) %>%
       summarize(b_i = sum(rating - mu)/(n() + L_i))
+    
     user_mus <- train %>%
       left_join(movie_mus, by = "movieId") %>%
       group_by(userId) %>%
@@ -674,9 +692,9 @@ And we can go through the same process to regularize the user effects.
     labs(title="User Effect, b_u", y="RMSE", x="lambda")
   gridExtra::grid.arrange(p1,p2,nrow=1)
   
-  min(regularized_rmses)  #[1] 0.8654905
+  min(regularized_rmses)  
   
-  L_u <- lambdas[which.min(regularized_rmses)]  #4.75
+  L_u <- lambdas[which.min(regularized_rmses)]  
   
   #clean up
   rm(p1,p2)
@@ -685,25 +703,26 @@ And we can go through the same process to regularize the user effects.
 Note that by using two different $\lambda$ values, we effectively decouple the $b_{u}$ and $b_{i}$ optimizations. With both user and movie effect regularized, our $RMSE$ becomes
 
 ```{r OverallRegularized, echo=FALSE}
-#So our new predicted ratings are:
-movie_mus <- train %>%
-  group_by(movieId) %>%
-  summarize(b_i = sum(rating - mu)/(n() + L_i))
-user_mus <- train %>%
-  left_join(movie_mus, by = "movieId") %>%
-  group_by(userId) %>%
-  summarize(b_u = sum(rating - b_i - mu)/(n() + L_u))
-
-predicted_ratings <- test %>%
-  left_join(movie_mus, by = 'movieId') %>%
-  left_join(user_mus, by = 'userId') %>%
-  mutate(prediction = mu + b_i + b_u) %>%
-  pull(prediction)
-
-results <- results %>% 
-  add_row( method = "Movie + User Effect, Regularized",
-           RMSE = RMSE(test$rating, predicted_ratings ))
-kable(results)  #[1] 0.8654905
+  #So our new predicted ratings are:
+  movie_mus <- train %>%
+    group_by(movieId) %>%
+    summarize(b_i = sum(rating - mu)/(n() + L_i))
+  
+  user_mus <- train %>%
+    left_join(movie_mus, by = "movieId") %>%
+    group_by(userId) %>%
+    summarize(b_u = sum(rating - b_i - mu)/(n() + L_u))
+  
+  predicted_ratings <- test %>%
+    left_join(movie_mus, by = 'movieId') %>%
+    left_join(user_mus, by = 'userId') %>%
+    mutate(prediction = mu + b_i + b_u) %>%
+    pull(prediction)
+  
+  results <- results %>% 
+    add_row( method = "Movie + User Effect, Regularized",
+             RMSE = RMSE(test$rating, predicted_ratings ))
+  kable(results)  
 ```
 
 So, while regularization does not provide a massive improvement, it is still an improvement. At this point, rather than add our movie and user effects to our `train` and `test` sets, we can take this opportunity to examine methods to reduce accumulated error. Though the ranges of our individual effects are sensible
@@ -714,13 +733,15 @@ and
 ```{r}
   range(user_mus$b_u)
 ```
-when we add the two effects together, we start to get undesirable accumulation of error. Our estimated residual goes outside the bounds of the data we are trying to predict.
+when we add the two effects together, we start to get undesirable accumulation of error. Our estimated residual goes outside the bounds of the data we are trying to predict.  
+
 ```{r}
   predicted_residual <- test %>%
     left_join(movie_mus, by = 'movieId') %>%
     left_join(user_mus, by = 'userId') %>%
     mutate(prediction = b_i + b_u) %>%
     pull(prediction)
+
   range(predicted_residual)
   rm(predicted_residual)
 ```
@@ -748,7 +769,7 @@ $$
 \right.
 $$
 
-We can write a simple function in R to perform this task.
+We can write a simple function in R to perform this task.  
 ```{r SimpleClip}
   SimpleClip <- function(b,UB,LB){
     b[b > UB] <- UB
@@ -762,7 +783,7 @@ The sigmoid clipping procedure takes the basic form of a generalized logistic fu
 $$
 G(x) = A + \frac{K-A}{(1 + Qe^{-Bx})^{1/v}}
 $$
-With the variables explained in Table \ref{tab:SigmaVarsExplained} and expressed in the following `R` function.
+With the variables explained in Table \ref{tab:SigmaVarsExplained} and expressed in the following `R` function.  
 ```{r SigmaFunc}
   SigmaFunc <- function(x, B = 1, A = 0.5-mu, K = 5-mu, nu = 2){
      Q = (1 - (K/A))^nu - 1
@@ -771,7 +792,7 @@ With the variables explained in Table \ref{tab:SigmaVarsExplained} and expressed
   }
 ```
 
-```{r SigmaVarsExplained}
+```{r SigmaVarsExplained, echo=FALSE}
 knitr::kable(data.frame( Effect = c("$A$", "$K$", "$B$",
                                     "$\\nu$", "$Q$"),
                          Description = c("Lower asymptote, default to residual",
@@ -786,9 +807,9 @@ knitr::kable(data.frame( Effect = c("$A$", "$K$", "$B$",
                          escape=FALSE)
 ```
 
-We take a look at the general performance of these two clipping functions in Figure \ref{fig:ClippingFuncsCompared}.
+We take a look at the general performance of these two clipping functions in Figure \ref{fig:ClippingFuncsCompared}.  
 
-```{r ClippingFuncsCompared, fig.height=4, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."}
+```{r ClippingFuncsCompared, echo=FALSE, fig.height=3, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."}
   data.frame( xs = seq(-6,5,0.1)) %>%
     mutate( simpleClip = SimpleClip(xs,UB = 2.5, LB = -3),
             sigmaClip1 = SigmaFunc(xs, B=0.1, A = -3, K = 2.5, nu = 2),
@@ -848,10 +869,10 @@ p1 <- data.frame(lambdas = lambdas, RMSEs = regularized_rmses) %>%
 ```
 The resulting loss $RMSE$ with the simple clipping procedure is then
 ```{r}
-min(regularized_rmses)  #[1] 0.8653825
+min(regularized_rmses) 
 ```
 And the results of our analysis thus far
-```{r}
+```{r echo=FALSE}
 results <- results %>% 
   add_row( method = "Movie + User Effect, Regularized, Simple Clipping",
            RMSE = min(regularized_rmses))
@@ -859,7 +880,7 @@ kable(results)
 ```
 With regularization terms
 ```{r}
-L_u <- lambdas[which.min(regularized_rmses)]  #4.25
+L_u <- lambdas[which.min(regularized_rmses)]  
 L_u_simple <- L_u
 ```
 When we compare the loss functions for unclipped versus clipped predictions, we see that our simple clipping procedure did provide an improvement in our estimate as measured by $RMSE$. Note that we not only clipped each estimated effect as it was calculated, we also clipped the final rating prediction.
@@ -914,7 +935,7 @@ Our analysis results up to this point are now:
   kable(results)
 ```
 
-The best performance for our movie and user effects estimates, $\hat{b}_i$ and $\hat{b}_u$, were with simple averages, followed by regularization to penalize low rating counts, simple clipping to keep the estimates within the range of the `rating` variable, and a final clipping step performed on the linear sum of the estimates. This completes our training of the movie and user effects and we can add `b_u` and `b_i` to the `train` set. We also add the values to our `test` set to expedite calculations for other effects, but note that `test` is not used to train these estimates of the movie and user effects. In addition, we create a `residual` column in both `test` and `train` and this will be the value that we try to estimate as we go forward. The residual is just the rating less all of the effects we have calculated thus far, but we additionally apply our clipping function, $\kappa()$, where the upper and lower bounds are the same ones we used for training.
+The best performance for our movie and user effects estimates, $\hat{b}_i$ and $\hat{b}_u$, were with simple averages, followed by regularization to penalize low rating counts, simple clipping to keep the estimates within the range of the `rating` variable, and a final clipping step performed on the linear sum of the estimates. This completes our training of the movie and user effects and we can add `b_u` and `b_i` to the `train` set. We also add the values to our `test` set to expedite calculations for other effects, but note that `test` is not used to train these estimates of the movie and user effects. In addition, we create a `residual` column in both `test` and `train` and this will be the value that we try to estimate as we go forward. The residual is just the rating less all of the effects we have calculated thus far, but we additionally apply our clipping function, $\kappa()$, where the upper and lower bounds are the same ones we used for training.  
 $$
 r_{u,i} = \kappa( y_{u,i} - \hat{\mu} - \hat{b}_{i} - \hat{b}_{u} )\Big\rvert_{0.5-\mu}^{5-\mu}
 $$
@@ -924,6 +945,7 @@ $$
   UB <- 5.0 - mu
   LB <- 0.5 - mu
   L_u <- L_u_simple  #L_i didn't change, but L_u did
+  
   movie_mus <- train %>%
     group_by(movieId) %>%
     summarize(b_i = sum(rating - mu)/(n() + L_i))
@@ -952,7 +974,7 @@ $$
 
 ## Temporal Effects
 
-The "BellKor" portion of the prize-winning Netflix Challenge team noted that temporal effects were a significant predictor of the baseline rating. We have two raw temporal predictors, `timestamp` and `year`. These allow us to examine release year, the day of rating, and the age of the movie at the day of rating for possible temporal effects. We can also potentially examine long-term drift in ratings by individual users, as well as seasonal or circadian patterns for ratings, as in Figure \ref{fig:tempAge}.
+The "BellKor" portion of the prize-winning Netflix Challenge team noted that temporal effects were a significant predictor of the baseline rating. We have two raw temporal predictors, `timestamp` and `year`. These allow us to examine release year, the day of rating, and the age of the movie at the day of rating for possible temporal effects. We can also potentially examine long-term drift in ratings by individual users, as well as seasonal or circadian patterns for ratings, as in Figure \ref{fig:tempAge}.  
 
 ```{r tempYear, echo=FALSE}
   # Plot average rating by release year
@@ -964,10 +986,11 @@ The "BellKor" portion of the prize-winning Netflix Challenge team noted that tem
     labs(title="Average Rating by Release Year", x="Year") +
     theme(legend.position = c(0.8,0.8))
 ```
-It does appear that the year of release has an effect on ratings, but it also is correlated with the number of ratings. We see there are many fewer ratings for very early movies, and those ratings tend to be higher. There is also a dip in ratings that correlates with an increase in the number of movies rated, somewhere in the mid- to late-nineties. We found that most timestamps were also from the mid- to late-nineties, so we can examine how this effect differs when we look at the age of the movie at the time it was rated.
+It does appear that the year of release has an effect on ratings, but it also is correlated with the number of ratings. We see there are many fewer ratings for very early movies, and those ratings tend to be higher. There is also a dip in ratings that correlates with an increase in the number of movies rated, somewhere in the mid- to late-nineties. We found that most timestamps were also from the mid- to late-nineties, so we can examine how this effect differs when we look at the age of the movie at the time it was rated.  
 
 ### Age of Movie at Rating Effect
-We can also examine how ratings change with the age of the movie. If we find the average ratings of all movies of the same age in the dataset, we ge the plot in Figure \ref{fig:tempAge}.
+We can also examine how ratings change with the age of the movie. If we find the average ratings of all movies of the same age in the dataset, we get the plot in Figure \ref{fig:tempAge}.  
+
 ```{r tempAge, echo=FALSE, fig.height=3, fig.cap="Average rating for movies by release year and by age of movie at the time of rating."}
   # Plot age of movie at rating against average rating for that age
   p2 <- train %>%
@@ -983,7 +1006,8 @@ We can also examine how ratings change with the age of the movie. If we find the
   gridExtra::grid.arrange(p1,p2,nrow=1)
   rm(p1,p2)
 ```
-We see that there is an age effect, though it appears complex. There is a spike in both the number of ratings and their values at three years, and that would be consistent with new releases being rated more often and also more positively. The number of ratings tapers off as age increases, but the value of the rating oscillates. Perhaps there are cultural effects here, where movies experience changes in popularity due to complex social factors. The movies that were rated at a point in time farthest from the release date have the most variability in average rating and standard deviation. It might make sense to group all ages over 75 into one group if we want to tweak the model further.
+
+We see that there is an age effect, though it appears complex. There is a spike in both the number of ratings and their values at three years, and that would be consistent with new releases being rated more often and also more positively. The number of ratings tapers off as age increases, but the value of the rating oscillates. Perhaps there are cultural effects here, where movies experience changes in popularity due to complex social factors. The movies that were rated at a point in time farthest from the release date have the most variability in average rating and standard deviation. It might make sense to group all ages over 75 into one group if we want to tweak the model further.  
 
 ```{r b_it, echo=FALSE}
   # Find item effects that depend on time. Start with age at time of rating without considering movies separately. Calculate average rating over all ratings of that age.
@@ -996,8 +1020,6 @@ We see that there is an age effect, though it appears complex. There is a spike 
     left_join(b_its, by = 'age') %>%
     mutate(prediction = mu + b_i + b_u + b_it) %>%
     pull( prediction)
-  
-  #RMSE( test$rating, predicted_ratings)  # [1] 0.8650189
   
   # Add this to results
   results <- results %>% 
@@ -1022,15 +1044,13 @@ We see that there is an age effect, though it appears complex. There is a spike 
     mutate(SimpleClip(prediction, UB = 5, LB = 0.5)) %>%
     pull( prediction)
   
-  #RMSE( test$rating, predicted_ratings)  # [1] 0.8650189
-  
   # Add this to results
   results <- results %>% 
     add_row( method = "Add Movie Age at Rating Effect, Clipped",
              RMSE = RMSE(test$rating, predicted_ratings ))
 ```
 
-What if we group this age effect by movie as well as by age. Do we observe an improved prediction when we estimate the rating based on the specific movie, as in Figure \ref{fig:PlotAgeByMovieEffect}.
+What if we group this age effect by movie as well as by age. Do we observe an improved prediction when we estimate the rating based on the specific movie, as in Figure \ref{fig:PlotAgeByMovieEffect}.   
 
 ```{r PlotAgeByMovieEffect, echo = FALSE, fig.height=3, fig.cap="Rating averages grouped by both movie age and user."}
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
@@ -1038,6 +1058,7 @@ What if we group this age effect by movie as well as by age. Do we observe an im
     summarize(n = n()) %>% 
     top_n(.,100,n) %>% 
     pull(movieId)
+  
   train %>% filter( movieId %in% sample(movieIds, 12)) %>% 
     mutate( age = year(as_datetime(timestamp)) - year) %>% 
     group_by(movieId, age) %>% summarize(avg = mean(residual)) %>%
@@ -1048,7 +1069,8 @@ What if we group this age effect by movie as well as by age. Do we observe an im
     facet_wrap(vars(movieId))+
     theme(legend.position = "none")
 ```
-We see that not all movie ratings are dependent on age at the time of rating in the same way. Some ratings show a trend that decreases steadily with the age of the movie, while others have a flat trend in ratings over time and still others have increases in ratings over time. It might be possible to group movies based on the shape of the age-rating curves, but that is beyond the scope of this analysis. Instead, we will simply calculate $\hat{b}_{i,t}$ based on both age and `movieId`, as follows. Note that we need to fill `NA` values with some value to be able to calculate $RMSE$. We use $NA \rightarrow 0$ with the understanding that a lack of ratings for a particular year might not be best estimated by this value. In order to fill `NA` values more intelligently, we would need to do some kind of regression to fill in missing values.
+
+We see that not all movie ratings are dependent on age at the time of rating in the same way. Some ratings show a trend that decreases steadily with the age of the movie, while others have a flat trend in ratings over time and still others have increases in ratings over time. It might be possible to group movies based on the shape of the age-rating curves, but that is beyond the scope of this analysis. Instead, we will simply calculate $\hat{b}_{i,t}$ based on both age and `movieId`, as follows. Note that we need to fill `NA` values with some value to be able to calculate $RMSE$. We use $NA \rightarrow 0$ with the understanding that a lack of ratings for a particular year might not be best estimated by this value. In order to fill `NA` values more intelligently, we would need to do some kind of regression to fill in missing values.  
 
 ```{r AgeEffectByMovieAndAge, cache=TRUE, echo=FALSE}
   b_its <- train %>%
@@ -1060,15 +1082,13 @@ We see that not all movie ratings are dependent on age at the time of rating in 
      left_join(b_its, by = c('movieId', 'age')) %>%
      mutate(prediction = mu + b_i + b_u + nafill(b_it, fill=0)) %>%
      pull( prediction)
-
-  #RMSE( test$rating, predicted_ratings)   #[1] 0.8621989
   
   results <- results %>% 
     add_row( method = "Age Effect by both Age and Movie",
              RMSE = RMSE(test$rating, predicted_ratings ))
 ```
 
-If we regularize the movie effect, as grouped by age and user, we get a regularization curve as seen in Figure \ref{fig:AgeEffectByMovieAndAgeRegularized}.
+If we regularize the movie effect, as grouped by age and user, we get a regularization curve as seen in Figure \ref{fig:AgeEffectByMovieAndAgeRegularized}.  
 
 ```{r AgeEffectByMovieAndAgeRegularized, echo = FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.height=3, fig.cap="Regularization curve for movie age effect, grouped by user and age of movie at time of rating."}
   library(data.table)  # ensures data.table::nafill works when cached
@@ -1095,6 +1115,7 @@ If we regularize the movie effect, as grouped by age and user, we get a regulari
                labs(title = "Age Effect, b_it")
   
   L_it <- lambdas[which.min(regularized_rmses)]
+  
   results <- results %>% add_row( 
       method = "Age Effect by Age and Movie, Regularized",
       RMSE = min(regularized_rmses))
@@ -1123,13 +1144,16 @@ When we perform the same regularization task, but also include clipping, our `RM
     return( RMSE(test$rating, predicted_ratings))
   })
 
-  min(regularized_rmses)  #[1] 0.8601591
+  min(regularized_rmses)  
   L_it <- lambdas[which.min(regularized_rmses)]
+  
   results <- results %>% add_row( 
       method = "Age Effect by Age and Movie, Regularized, Clipped",
       RMSE = min(regularized_rmses))
 ```
+
 And our results up to this point in the analysis are
+
 ```{r b_itToTrain}
   # We add this temporal effect to the train set and re-calculate the residual
   b_its <- train %>%
@@ -1155,9 +1179,9 @@ We observe that predicting a rating based on the average age of the movie at the
 
 
 ### Circadian Effect
-Humans can be strongly influenced by their circadian rhythms. Time of day can affect many predictors of decision-making, from mood to impulse control. The average rating by time of day for all user is shown in Figure \ref{fig:circadianEffect}.
+Humans can be strongly influenced by their circadian rhythms. Time of day can affect many predictors of decision-making, from mood to impulse control. The average rating by time of day for all user is shown in Figure \ref{fig:circadianEffect}.  
 
-```{r circadianEffect, echo = FALSE, fig.height=3, fig.cap="Average rating by time of day for all users."}
+```{r circadianEffect, echo = FALSE, fig.height=4, fig.cap="Average rating by time of day for all users. The total number of ratings at that hour of day is given by the point size. Note that the y axis only covers plus or minus 0.1 rating points. This suggests little predictive power in time of day."}
   train %>% mutate( hour = hour(timestamp)) %>%
     group_by(hour) %>%
     summarize(avg = mean(residual), N = n()) %>%
@@ -1165,10 +1189,12 @@ Humans can be strongly influenced by their circadian rhythms. Time of day can af
     geom_point( aes(size = N), alpha = 0.6, col = I("blue")) +
     geom_line() +
     ylim(-0.1,0.1) +
-    theme(legend.position = "top")
+    labs(x="Hour of Day",y="Average Rating",
+         title="Average Rating by Hour of Day for All Users") +
+    theme(legend.position = "bottom")
 ```
 
-The result suggests there is no predictive power in the hour at which a rating was made. It does tell us that few ratings were created in the mid-morning hours, but that isn't particularly surprising since that would correlate with school and work hours. The hour of rating does not allow ratings to be clustered when viewed as a communal effect. However, when viewed as a user effect, as in Figure \ref{fig:circadianByUserPlot}, where we first group our data by user and then by hour of the day, we see that there are large differences in individual user's rating behavior with respect to time of day. A similar effect was mentioned by the "BellKor" team in their explanation, though they looked more at spikes or rating frequency changes as a function of linear time. They postulated that these effects could be caused by multiple users generating ratings under a single `userId`. We could further postulate that it could also be a true circadian effect observed for a single user, in which some activity or biological state is correlated with negative ratings, such as lack of sleep or low blood sugar, while another state is correlated with positive ratings.  Whatever the underlying cause, we see that putting all users into one bag would fail to leverage differences in rating patterns by time of day, so we explore how these differences can be added to our blend below.
+The result suggests there is no predictive power in the hour at which a rating was made. It does tell us that few ratings were created in the mid-morning hours, but that isn't particularly surprising since that would correlate with school and work hours. The hour of rating does not allow ratings to be clustered when viewed as a communal effect. However, when viewed as a user effect, as in Figure \ref{fig:circadianByUserPlot}, where we first group our data by user and then by hour of the day, we see that there are large differences in individual user's rating behavior with respect to time of day. A similar effect was mentioned by the "BellKor" team in their explanation, though they looked more at spikes or rating frequency changes as a function of linear time. They postulated that these effects could be caused by multiple users generating ratings under a single `userId`. We could further postulate that it could also be a true circadian effect observed for a single user, in which some activity or biological state is correlated with negative ratings, such as lack of sleep or low blood sugar, while another state is correlated with positive ratings.  Whatever the underlying cause, we see that putting all users into one bag would fail to leverage differences in rating patterns by time of day, so we explore how these differences can be added to our blend below.  
 
 ```{r circadianByUserPlot, echo = FALSE, fig.height=3, fig.cap="Average ratings by hour of day for several prolific raters. Rating patterns are not uniform across users."}
   # Set the seed for random selection of users
@@ -1193,7 +1219,7 @@ The result suggests there is no predictive power in the hour at which a rating w
          x="Hour", y="Average Rating")
 
 ```
-We calculate a user effect based on hour of the day using just the average residual rating given by that user at that hour on any day.
+We calculate a user effect based on hour of the day using just the average residual rating given by that user at that hour on any day.  
 ```{r circadianByUserb_ut, echo=FALSE}
 
   b_uts <- train %>% mutate( hour =  hour(timestamp)) %>%
@@ -1213,11 +1239,11 @@ We calculate a user effect based on hour of the day using just the average resid
 
   results <- results %>% add_row( 
       method = "Circadian Effect by Hour and User",
-      RMSE = RMSE(test$rating, predicted_ratings))  #[1] 0.8547847 
+      RMSE = RMSE(test$rating, predicted_ratings))  
   knitr::kable(results)
 ```
 
-This was a substantial improvement in RMSE. Does regularization make sense here? Are there hours of the day for certain users with so few ratings that the prediction should be penalized? Our data exploration suggests yes, so we should try regularization as in Figure \ref{fig:regularizeCircadianByUser}.
+This was a substantial improvement in RMSE. Does regularization make sense here? Are there hours of the day for certain users with so few ratings that the prediction should be penalized? Our data exploration suggests yes, so we should try regularization as in Figure \ref{fig:regularizeCircadianByUser}.  
 
 ```{r regularizeCircadianByUser, echo = FALSE, fig.height=3, fig.cap="Regularization curve for circadian effect grouped by user."}
   # Regularize user temporal effect
@@ -1255,10 +1281,11 @@ with training constant, $\lambda_{u,t}$
   L_ut <- lambdas[which.min(regularized_rmses)]
   L_ut
 ```
+
 ```{r echo=FALSE, cache=TRUE}
   results <- results %>% add_row( 
       method = "Circadian Effect by Hour and User, Regularized",
-      RMSE = min(regularized_rmses))  #[1] 0.8502368
+      RMSE = min(regularized_rmses))  
   knitr::kable(results)
 ```  
 
@@ -1288,8 +1315,9 @@ We see that regularization has a large effect, so we re-calculate the circadian 
 
 The "BellKor" team also found that rating behavior for each user tended to drift over time. If we look at a random sample of users, as in Figure \ref{fig:driftUserTime}, we see that there are many users who were not very prolific and for whom a longer-term drift effect component is not especially useful. If we were to pursue this strategy, we would have to decide how to treat users without enough data to establish a trend. One potential strategy would be to combine all users to consider on overall trend.   
 
-```{r driftUserTime, warning=FALSE, echo=FALSE, fig.height=3, fig.cap="Drift in user rating over time, by week, for randomly sampled users."}
+```{r driftUserTime, warning=FALSE, echo=FALSE, fig.height=4, fig.cap="Drift in user rating over time, by week, for randomly sampled users."}
   set.seed(1234,sample.kind = "Rounding")
+  # Users with largest sample size
   userIds <- train %>% group_by(userId) %>% 
     summarize(n = n()) %>% 
     top_n(.,100,n) %>% 
@@ -1302,10 +1330,12 @@ The "BellKor" team also found that rating behavior for each user tended to drift
     ggplot(aes(week,avg, color = as_factor(userId))) + 
     geom_line() + 
     facet_wrap(vars(userId)) +
+    labs(x="Week", y="Average Rating", 
+         title="Drift in Ratings Over Time For Several Users With Large Sample Size") +
     theme(legend.position = "none", axis.text.x = element_text(angle=45))
 ```
 
-We can observe a slight effect when we combine the data for five hundred randomly chosen users, as in Figure \ref{fig:drift500Users}. However, the effect is very slight, with a slope near zero. Most of the trend slopes for individual users in our plot are close to zero, as well. Additionally, we have already achieved approximately the same RMSE as the winning team for the Netflix Prize, and the computational cost of what we expect to be a very small incremental improvement begins to offer diminishing returns. We could continue to pursue these time-based effects on the user side as future refinements.
+We can observe a slight effect when we combine the data for five hundred randomly chosen users, as in Figure \ref{fig:drift500Users}. However, the effect is very slight, with a slope near zero. Most of the trend slopes for individual users in our plot are close to zero, as well. Additionally, we have already achieved approximately the same RMSE as the winning team for the Netflix Prize, and the computational cost of what we expect to be a very small incremental improvement begins to offer diminishing returns. We could continue to pursue these time-based effects on the user side as future refinements.  
 
 ```{r drift500Users, warning=FALSE, echo = FALSE, fig.height=3, fig.cap="Cumulative drift for 500 randomly selected users."}
   # Cumulative drift for 500 random users
@@ -1325,18 +1355,20 @@ We can observe a slight effect when we combine the data for five hundred randoml
 We improved the RMSE between our test and train sets to nearly the same overall value as the winning team for the Netflix Prize just by considering user effects that depended on user and a temporal variable and item effects that depended on item and a temporal variable. We can now begin to consider how users and items interact. Perhaps the most intuitive next step is to group movies into item groups based on information already provided to us, specifically, the `genres` field. We will also attempt to group users and individual items in a later section, but let's begin with the information already codified in the dataset.  
 
 ### Predictions with Raw `genres` Data
-We can look at a random sample of very prolific users and examine how their average ratings change for the most popular genre groups, where each genre group is just the raw genres data treated as a factor and converted to a number. We can see that data represented in Figure \ref{fig:genresRawAvg}. We see that there is some similarity between user's rating patterns, but none have identical patterns. We are only looking at the first ten `genres` and representing more of the raw genre combinations becomes unreadable very quickly as there are more than seven hundred. We can reduce the number of dimensions just by splitting the genres into individual columns and binarizing the data, as we will do after we examine predictions using just the raw `genres` field. 
+We can look at a random sample of very prolific users and examine how their average ratings change for the most popular genre groups, where each genre group is just the raw genres data treated as a factor and converted to a number. We can see that data represented in Figure \ref{fig:genresRawAvg}. We see that there is some similarity between user's rating patterns, but none have identical patterns. We are only looking at the first ten `genres` and representing more of the raw genre combinations becomes unreadable very quickly as there are more than seven hundred. We can reduce the number of dimensions just by splitting the genres into individual columns and binarizing the data, as we will do after we examine predictions using just the raw `genres` field.  
 
-In the following code chunks, we explore how we can improve our prediction using just the factorized raw genres field, along with regularization. We see that regularization provides a considerable improvement over the unregularized version, and this should not be surprising given that `genres` has more than seven hundred possible values and not all users will have rated even one movie for every genre, much less enough movies to provide real predictive power. For users with few ratings overall, there will be multiple `NA` values, and we can deal with those in a variety of ways. To begin, we predict those `genres` combinations with no ratings in them as zeroes, essentially saying that no information contributes no change in the prediction. We might also consider replacing `NA` values for genres with a slightly negative value, say -0.1, to indicate that a user who has not rated any movies in a `genres` category is assumed not to like movies in that category. This could be a faulty assumption, however, as different users will have different strategies and reasoning when it comes to which movies they rate. Some users may choose to provide only negative ratings for movies they hate, for example, or may like movies in a given genre group reasonably well, but not well enough to make a concerted effort to rate movies in that genre. This could be an area for additional refinement.
+In the following code chunks, we explore how we can improve our prediction using just the factorized raw genres field, along with regularization. We see that regularization provides a considerable improvement over the unregularized version, and this should not be surprising given that `genres` has more than seven hundred possible values and not all users will have rated even one movie for every genre, much less enough movies to provide real predictive power. For users with few ratings overall, there will be multiple `NA` values, and we can deal with those in a variety of ways. To begin, we predict those `genres` combinations with no ratings in them as zeroes, essentially saying that no information contributes no change in the prediction. We might also consider replacing `NA` values for genres with a slightly negative value, say -0.1, to indicate that a user who has not rated any movies in a `genres` category is assumed not to like movies in that category. This could be a faulty assumption, however, as different users will have different strategies and reasoning when it comes to which movies they rate. Some users may choose to provide only negative ratings for movies they hate, for example, or may like movies in a given genre group reasonably well, but not well enough to make a concerted effort to rate movies in that genre. This could be an area for additional refinement.  
 
-```{r genresRawAvg, echo=FALSE, warning=FALSE, fig.height = 3, fig.cap="Raw genres as numeric factor vs. the average residual per user for a small random set of prolific users. Some clustering becomes apparent, but there are still far too many variables for this method to be human-readable."}
+```{r genresRawAvg, echo=FALSE, warning=FALSE, fig.height = 4, fig.cap="Raw genres as numeric factor vs. the average residual per user for a small random set of prolific users. Some clustering becomes apparent, but there are still far too many variables for this method to be human-readable."}
+  suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
+
   genres_largeN <- train %>% mutate(genres = as_factor(genres)) %>%
     group_by(genres) %>% 
     summarize(n = n()) %>% 
-    top_n(.,10,n) %>% 
+    top_n(.,25,n) %>% 
     pull(genres)
     
-  train %>% filter( userId %in% sample(userIds, 6)) %>%
+  train %>% filter( userId %in% sample(userIds, 12)) %>%
     filter(genres %in% genres_largeN) %>%
     mutate( genres = as_factor(genres)) %>%
     group_by(userId, genres) %>% 
@@ -1344,10 +1376,13 @@ In the following code chunks, we explore how we can improve our prediction using
     ggplot(aes(as.numeric(genres), avg, color = as_factor(userId))) + 
     geom_line( alpha = 0.5) +
     facet_wrap(vars(as_factor(userId))) +
+    labs(x="Genres, Numeric Factor Representation", y="Average Rating",
+         title="Raw Genres vs Average Ratings for Several Prolific Users") +
     theme(legend.position = "none")
 ```
 
-We calculate the first user/genre effect estimate in the same way we have done for previous estimates, but we find that our $RMSE$ has not improved.
+We calculate the first user/genre effect estimate in the same way we have done for previous estimates, but we find that our $RMSE$ has not improved.  
+
 ```{r calculateFirstb_ug, echo=FALSE, error=FALSE, message=FALSE,warning=FALSE}
   b_ugs <- train %>% mutate( genres = as_factor(genres)) %>%
     group_by(userId, genres) %>%
@@ -1357,8 +1392,6 @@ We calculate the first user/genre effect estimate in the same way we have done f
       mutate( age = year(timestamp) - year, 
               hour = hour(timestamp),
               genres = as_factor(genres)) %>%
-      #left_join(b_its, by = c('movieId','age')) %>%
-      #left_join(b_uts, by = c('userId', 'hour')) %>%
       left_join(b_ugs, by = c('userId', 'genres')) %>%
       mutate(prediction = mu + b_i + b_u + 
                nafill(b_it, fill = 0) +   #fill NA with 0, ie no effect
@@ -1367,12 +1400,13 @@ We calculate the first user/genre effect estimate in the same way we have done f
       pull(prediction)
   
   RMSE(test$rating, predicted_ratings)
+  
   results <- results %>% add_row( 
     method = "Genre Effect, just Factors",
-    RMSE = RMSE(test$rating, predicted_ratings))  #[1] 0.9087169
+    RMSE = RMSE(test$rating, predicted_ratings)) 
 ```
 
-We try regularizing as we have previously observed that there are many genre combinations for which users have given no ratings. We see that regularization does, indeed, help quite a bit in this case as seen in the regularization curve in Figure \ref{fig:regularizeGenreEffect}.
+We try regularizing as we have previously observed that there are many genre combinations for which users have given no ratings. We see that regularization does, indeed, help quite a bit in this case as seen in the regularization curve in Figure \ref{fig:regularizeGenreEffect}.  
 
 ```{r regularizeGenreEffect, fig.height=3, fig.cap="Regularization curve for genre effect based on factorized original genres string."}
   lambdas <- seq(7,11,0.5)
@@ -1385,8 +1419,6 @@ We try regularizing as we have previously observed that there are many genre com
       mutate( age = year(timestamp) - year, 
               hour = hour(timestamp),
               genres = as_factor(genres)) %>%
-      #left_join(b_its, by = c('movieId','age')) %>%
-      #left_join(b_uts, by = c('userId', 'hour')) %>%
       left_join(b_ugs, by = c('userId', 'genres')) %>%
       mutate(prediction = mu + b_i + b_u + 
                nafill(b_it, fill = 0) +   #fill NA with 0, ie no effect
@@ -1408,17 +1440,17 @@ Our regularized minimum $RMSE$ was
 ```
 with regularization parameter
 ```{r}
-  L_ug <- lambdas[which.min(regularized_rmses)]  #8.5
+  L_ug <- lambdas[which.min(regularized_rmses)] 
 ```
 ```{r echo = FALSE}
   results <- results %>% add_row( 
     method = "Genre Effect, just Factors, Regularized",
-    RMSE = min(regularized_rmses)) # 0.843145
+    RMSE = min(regularized_rmses)) 
 ```
-We will explore another method for estimating the genre effect before we commit the predictions to our blend.
+We will explore another method for estimating the genre effect before we commit the predictions to our blend.  
 
 ### Predictions with Binarized `genres`
-We created the binarized columns for `genres` in our Data Wrangling section. We can now begin to explore that data by looking at how the residual differs for each of the users in our randomly selected small group. We see in Figure \ref{fig:residualByGenreFiveUsers} that for genres with many ratings by that user, the range within each genre is large, so even if we could predict the residual with just one genre, our error would still be large. The problem is that it doesn't really make sense to predict the residual with one genre when many of the items, or movies, in our dataset belong to more than one genre group, so the residual depends on multiple genre effects. That is why the model proposed in the coursework was a linear combination of the effects of the various genres. The big-data problem of trying to do a linear regression on millions of data points is still restrictive, just as it would be restrictive, in terms of time and computational resources, to do a direct linear regression for `rating` predicted by `userId` and `movieId`. One possible approach is to reduce the number of dimensions. We can see in our data that there is substantial correlation between genres for each user. For example, `Action` and `Adventure` have similar means and distributions for each of the `userIds` even though the distributions differ between users. So we see that we could both reduce the number of dimensions and then perhaps group users together, thereby reducing the size of a user/item matrix in both dimensions. A possible approach would be to do Principal Component Analysis to reduce the number of genres, followed by k-Means Clustering to reduce the number of users into user groups and finally to do a linear model predicting residual based on principal components of genre and user clusters.
+We created the binarized columns for `genres` in our Data Wrangling section. We can now begin to explore that data by looking at how the residual differs for each of the users in our randomly selected small group. We see in Figure \ref{fig:residualByGenreFiveUsers} that for genres with many ratings by that user, the range within each genre is large, so even if we could predict the residual with just one genre, our error would still be large. The problem is that it doesn't really make sense to predict the residual with one genre when many of the items, or movies, in our dataset belong to more than one genre group, so the residual depends on multiple genre effects. That is why the model proposed in the coursework was a linear combination of the effects of the various genres. The big-data problem of trying to do a linear regression on millions of data points is still restrictive, just as it would be restrictive, in terms of time and computational resources, to do a direct linear regression for `rating` predicted by `userId` and `movieId`. One possible approach is to reduce the number of dimensions. We can see in our data that there is substantial correlation between genres for each user. For example, `Action` and `Adventure` have similar means and distributions for each of the `userIds` even though the distributions differ between users. So we see that we could both reduce the number of dimensions and then perhaps group users together, thereby reducing the size of a user/item matrix in both dimensions. A possible approach would be to do Principal Component Analysis to reduce the number of genres, followed by k-Means Clustering to reduce the number of users into user groups and finally to do a linear model predicting residual based on principal components of genre and user clusters.  
 
 ```{r residualByGenreFiveUsers, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4, fig.cap="Average residual rating for each genre for five randomly selected users."}
   set.seed(1234,sample.kind = "Rounding")
@@ -1484,9 +1516,9 @@ We created the binarized columns for `genres` in our Data Wrangling section. We 
     RMSE = RMSE(test$rating, predicted_ratings + prediction_genres))  
 ```
 
-We see that binarizing the `genres` data does not improve our loss function. We should attempt to regularize this model, as well, because we saw that there were many `userId` and individual genre combinations with either few data points or no data.
+We see that binarizing the `genres` data does not improve our loss function. We should attempt to regularize this model, as well, because we saw that there were many `userId` and individual genre combinations with either few data points or no data.  
 
-We noted that some users have not rated any movies in a particular genre, and very few in others, therefore it might make sense to penalize estimates of these, or regularized on sample size as we have done previously as seen in Figure \ref{fig:GenreRegularization}. For future work, it might also make sense to try filling NAs with something other than 0, perhaps -0.5 or -1 on the assumption that if the user has not rated movies in that genre, they don't like that genre.
+We noted that some users have not rated any movies in a particular genre, and very few in others, therefore it might make sense to penalize estimates of these, or regularized on sample size as we have done previously as seen in Figure \ref{fig:GenreRegularization}. For future work, it might also make sense to try filling NAs with something other than 0, perhaps -0.5 or -1 on the assumption that if the user has not rated movies in that genre, they don't like that genre.  
 
 ```{r GenreRegularization, echo=FALSE, warning=FALSE, message=FALSE, cache=TRUE, fig.height=3, fig.cap="Binarized Genre Regularization"}
   lambdas <- seq(0,20,5)
@@ -1526,15 +1558,15 @@ Our resultant $RMSE$ was
 ```{r echo=FALSE}
   results <- results %>% add_row( 
     method = "Genre Effect, Binarized, Regularized",
-    RMSE = min(regularized_rmses)) #[1] 0.8461925
+    RMSE = min(regularized_rmses)) 
   kable(results)
   # Do some cleanup
   rm( dummy, prediction_genres, predicted_ratings, lambdas, regularized_rmses )
 ```
 
-We didn't improve our loss function with the binarization approach, but we might be able to use the format to create a decision tree or k nearest neighbor model of residual predicted by genres. We examine the heatmap of user vs. genre in Figure \ref{fig:Genres}.
+We didn't improve our loss function with the binarization approach, but we might be able to use the format to create a decision tree or k nearest neighbor model of residual predicted by genres. We examine the heatmap of user vs. genre in Figure \ref{fig:Genres}.  
 
-```{r Genres, message=FALSE, warning=FALSE}
+```{r Genres, message=FALSE, warning=FALSE, fig.cap="Heatmap of binarized genres average rating for several randomly chosen users. Binarized genres with near zero variance are removed and users and genres are clustered by distance. Red color indicates a negative residual and blue indicates a positive residual.}
   # We can begin by asking which genres are not predictive, or have very little variance over the range of our data
   nzv <- nearZeroVar( 
     sweep(train %>% select(None:Western), 1, train$residual, "*") )
@@ -1564,7 +1596,9 @@ We didn't improve our loss function with the binarization approach, but we might
 
 ```
  
-We see that some relationships between groups of users and genres do exist, so perhaps a neighborhood or clustering approach would work. If we try the following code to fit a k-Nearest Neighbor model, we find that we run into problems with too many ties in our data. This is due to the fact that we have integer, and worse, binary data, for all of our predictors. We can deal with this by either increasing the size of the neighborhood, or by adding very small random noise to our binary matrix data. We could also edit the source code for knn3, which throws the error for too many ties. We should consider this very carefully, however, to determine if it is appropriate or worthwhile. Another option is to fit the k-Nearest Neighbor model with the original `genres` data, but treat the list of genres as factors. 
+We see that some relationships between groups of users and genres do exist. For example, at the lower right we see a group of users defined by a strong dislike of `Film-Noir`. Just above that group we have one that dislikes `Children` and `Animation` genres. User 71055 belongs to a group that likes `Documentary` and `Film-Noir` but mildly dislikes `Action`. It appears that the `Children` and `Animation` columns are positively correlated just based on a similarity of residual patterns.
+
+Therefore perhaps a neighborhood or clustering approach would improve our model. If we try the following code to fit a k-Nearest Neighbor model, we find that we run into problems with too many ties in our data. This is due to the fact that we have integer, and worse, binary data, for all of our predictors. We can deal with this by either increasing the size of the neighborhood, or by adding very small random noise to our binary matrix data. We could also edit the source code for knn3, which throws the error for too many ties. We should consider this very carefully, however, to determine if it is appropriate or worthwhile. Another option is to fit the k-Nearest Neighbor model with the original `genres` data, but treat the list of genres as factors. 
  
 ```{r GenreKnnDummy, eval = FALSE}  
   train_small <- train %>% filter(userId %in% users) %>%
@@ -1674,14 +1708,14 @@ We can perform the same task as above, approximately, with `recommenderlab` eval
   rm( algorithms, recommenderGenreResults, scheme )
 ```
 
-We see that Funk SVD performed best, followed by ALS. Unfortunately, these were also the two most time-consuming methods. Part of the reason for this is that both SVDF and ALS allow for more control than just SVD, for example. For this reason, we will optimize the parameters with our smaller training set of randomly selected users.
+We see that Funk SVD performed best, followed by ALS. Unfortunately, these were also the two most time-consuming methods. Part of the reason for this is that both SVDF and ALS allow for more control than just SVD, for example. For this reason, we will optimize the parameters with our smaller training set of randomly selected users.  
 
 
 In the code below, we tune the Funk SVD algorithm model of genre preference for each user. There are several parameters that we could tune with the `recommenderlab` SVDF method. These include
 
 ```{r SVDFtrainingTerms, echo = FALSE, cache=TRUE}
-knitr::kable(data.frame( Effect = c("$k$", "$\\gamma$", "$\\lambda$",
-                                    "$min_epochs$", "$max_epochs$"),
+knitr::kable(data.frame( Effect = c("k", "$\\gamma$", "$\\lambda$",
+                                    "min epochs", "max epochs"),
                          Description = c("rank of the matrix/number of features/number of principal components",
                                     "regularization term that penalized large values",
                                     "learning rate",
@@ -1790,7 +1824,7 @@ We see that our best results were achieved with the largest number of features t
              nafill(b_ug, fill = 0)) %>%
     pull(prediction)
   
-  RMSE(test$rating, predicted_ratings )  #~ 0.8321194
+  RMSE(test$rating, predicted_ratings )  
 ```
 
 ```{r echo=FALSE,cache=TRUE,warning=FALSE, error=FALSE}  
@@ -1802,7 +1836,7 @@ We see that our best results were achieved with the largest number of features t
   predicted_ratings <- SimpleClip(predicted_ratings, UB = 5.0, LB = 0.5)
 
   # Calculate the loss
-  RMSE(test$rating, predicted_ratings )  #~ 0.8315741
+  RMSE(test$rating, predicted_ratings ) 
   
   # Add to results
   results <- results %>% 
@@ -1864,7 +1898,7 @@ Having estimated many different baseline effects, and the user/genre effect, whi
   rm( methods, recommenderRMSEs )
 ```
 
-We see that on the small subset of users, SVD had the best performance, and again SVDF and ALS perform similarly well. We will proceed with tuning the user and movie interaction SVD prediction in the same way that we tuned for user genre interaction, except we'll tune it on the entire `train` set. We will keep in mind that we might want to add in some of the features of the Funk SVD algorithm as it was the next best performer and we selected `SVD` based on its performance on a small subset of our `train` set.
+We see that on the small subset of users, SVD had the best performance, and again SVDF and ALS perform similarly well. We will proceed with tuning the user and movie interaction SVD prediction in the same way that we tuned for user genre interaction, except we'll tune it on the entire `train` set. We will keep in mind that we might want to add in some of the features of the Funk SVD algorithm as it was the next best performer and we selected `SVD` based on its performance on a small subset of our `train` set.  
 
 
 ```{r FullSVD, message=FALSE, error=FALSE}
@@ -1916,7 +1950,7 @@ We see that on the small subset of users, SVD had the best performance, and agai
   rm(x)
 ```
 
-We then calculate our prediction. Because of the size of the output matrix, we do this element-wise and only calculate a prediction for a user/movie pair found in the `test` set. Figure \ref{fig:TrainbuiSVD} shows the regularization curve used to minimize $RMSE$ by the number of matrix factor components, or k's.
+We then calculate our prediction. Because of the size of the output matrix, we do this element-wise and only calculate a prediction for a user/movie pair found in the `test` set. Figure \ref{fig:TrainbuiSVD} shows the regularization curve used to minimize $RMSE$ by the number of matrix factor components, or k's.  
 
 ```{r TrainbuiSVD, cache=TRUE, eval = TRUE, warning=FALSE, error=FALSE, fig.height=3, fig.cap="Regularization Curve for SVD number of matrix factor components to minimize RMSE."}
   # Initialize a b_ui to build with a for loop, very un-R-like, but works
@@ -1937,7 +1971,7 @@ We then calculate our prediction. Because of the size of the output matrix, we d
   qplot(ks,rmses, main="User Movie Interaction Components to Minimize RMSE")
   K_User_Movie_SVD <- ks[which.min(rmses)]  # store best k for final model
   K_User_Movie_SVD
-  min(rmses)  #~ 0.8267493
+  min(rmses)
   
   rm(i, b_ui_SVD)
 ```
@@ -1945,31 +1979,34 @@ We then calculate our prediction. Because of the size of the output matrix, we d
 ```{r CalcBuiSVDTrained, cache=TRUE, warning=FALSE, error=FALSE}
   # Initialized a dummy b_ui - we build it with a for-loop in a very un-R-like
   # way, but the only way that worked
-  b_ui_SVD <- rep(0,10)
+  buiSVD <- rep(0,10)
   
   # For loop over the rows of test. Calculate b_ui element-wise UdV' but we
   # can drop the transposition when element-wise
-  for( i in 1:nrow(test)) b_ui_SVD[i] <- 
-        sum( rec@model$svd$u[test$U_index[i], 1:K_User_Movie_SVD ]  * 
+  for( j in 1:nrow(test)) buiSVD[j] <- 
+        sum( rec@model$svd$u[test$U_index[j], 1:K_User_Movie_SVD ]  * 
                rec@model$svd$d[1:K_User_Movie_SVD] *
-               rec@model$svd$v[test$V_index[i], 1:K_User_Movie_SVD ])
+               rec@model$svd$v[test$V_index[j], 1:K_User_Movie_SVD ])
   
   # Add b_ui to test for easier access. Also helps keep user/movie IDs straight
   test <- test %>% 
-    mutate(b_ui = b_ui_SVD)
+    mutate(b_ui = buiSVD)
   # Calculate a prediction for the test set
   test <- test %>%
     mutate(rating_hat = mu + b_i + b_u + 
                nafill(b_it, fill = 0) +   #fill NA with 0, ie no effect
                nafill(b_ut, fill = 0) +
                nafill(b_ug, fill = 0) +
-               nafill(b_ui, fill = 0))
+               nafill(b_ui, fill = 0)) %>%
+    mutate(rating_hat = SimpleClip(rating_hat, UB=5.0, LB=0.5))
   
   # What was our loss function based on this prediction?
   RMSE(test$rating, test$rating_hat)
 ```
 
-```{r echo=FALSE, cache=TRUE, warning=FALSE, error=FALSE}
+The final results of the model development are in Table \ref{tab:resultsBeforeFinal}.  
+
+```{r resultsBeforeFinal, echo=FALSE, cache=TRUE, warning=FALSE, error=FALSE}
   # Add it to the results
   results <- results %>% 
     add_row(method = "User/movie SVD", 
@@ -1979,7 +2016,7 @@ We then calculate our prediction. Because of the size of the output matrix, we d
   knitr::kable(results)
   
   # Clean up
-  rm(rec)
+  rm(rec, j, buiSVD)
 ```
 
 ## Train the Final Model
@@ -2008,9 +2045,9 @@ So the final model is a linear combination of the effects in Table \ref{tab:Effe
 
 $$ \hat{y} = \hat{\mu} + \hat{b}_{i} + \hat{b}_{u} + \hat{b}_{i,t} + \hat{b}_{u,t} + \hat{b}_{u,g} + \hat{b}_{u,i} $$
 
-where the hats indicate our estimate of the actual rating and effect components, and as we have done in previous sections, user is indicated with a $u$ subscript and movie is indicated with an $i$ subscript. The $t$ subscript is used to indicate temporal effects, but the two time-dependent effects are not on the same time-scale. For $\hat{b}_{i,t}$ the scale of the time variable is in years since release, while for $\hat{b}_{u,t}$ the time variable is in hour of the day based on a twenty four hour clock.
+where the hats indicate our estimate of the actual rating and effect components, and as we have done in previous sections, user is indicated with a $u$ subscript and movie is indicated with an $i$ subscript. The $t$ subscript is used to indicate temporal effects, but the two time-dependent effects are not on the same time-scale. For $\hat{b}_{i,t}$ the scale of the time variable is in years since release, while for $\hat{b}_{u,t}$ the time variable is in hour of the day based on a twenty four hour clock.  
 
-The final equations for each effect are given below.
+The final equations for each effect are given below.  
 $$ \hat{\mu} = \frac{1}{N_{y}}\sum_{}y$$
 $$\hat{b}_{i} = \frac{1}{n_{i} + \lambda_i}\sum_{u=1}^{n_i}( y_{u,i} - \hat{\mu})$$
 $$\hat{b}_{u} = \frac{1}{n_{u} + \lambda_{u}}\sum_{i=1}^{n_u}( y_{u,i} - \hat{\mu} - \hat{b}_{i})$$
@@ -2019,7 +2056,7 @@ $$\hat{b}_{i,t} = \frac{1}{n_{i,t} + \lambda_{i,t}}\sum_{u=1}^{n_{i,t}}( y_{u,i,
 $$\hat{b}_{u,t} = \frac{1}{n_{u,t} + \lambda_{u,t}}\sum_{i=1}^{n_{u,t}}( y_{u,i,t} - \hat{\mu} - \hat{b}_{i} - \hat{b}_{u} - \hat{b}_{i,t})$$
 We then define a residual, $\hat{r}_{u,i}$ as
 $$ \hat{r}_{u,i,t} = y_{u,i,t} - \hat{\mu} - \hat{b}_{i} - \hat{b}_{u} - \hat{b}_{i,t} - \hat{b}_{u,t}$$
-And we assign each `genre` in the list a number from one to the number of genre combinations in the training set. We know that we will include all possible `genre` combinations for the `test` set because we chose our test set such that all `userIds` and `movieIds` from the test set were represented in the training set, and the `genre` combination has a 1:1 correlation with `movieId`. In other words, all movies with the same `movieId` have the same `genres` combination. This residual was calculated from the residual in the same manner as our other baseline predictors, then regularized, and the result was decomposed into its matrix components with the Funk variant of Singular Value Decomposition (SVD).
+And we assign each `genre` in the list a number from one to the number of genre combinations in the training set. We know that we will include all possible `genre` combinations for the `test` set because we chose our test set such that all `userIds` and `movieIds` from the test set were represented in the training set, and the `genre` combination has a 1:1 correlation with `movieId`. In other words, all movies with the same `movieId` have the same `genres` combination. This residual was calculated from the residual in the same manner as our other baseline predictors, then regularized, and the result was decomposed into its matrix components with the Funk variant of Singular Value Decomposition (SVD).  
 $$\hat{b}_{u,g} \approx p_uq_i$$
 where the values of the matrix factors are further approximated as
 $$\hat{b}_{u,g} = \sum_{k=1}^{K} p_{u,k}q_{i,k}$$
@@ -2030,13 +2067,13 @@ $$ \hat{r}_{u,i,t} = y_{u,i,t} - \hat{\mu} - \hat{b}_{i} - \hat{b}_{u} - \hat{b}
 and approximate the interaction between users and movies, or $\hat{b}_{u,i}$ with a second set of decomposed vector pairs. This time our training indicated a better result with just the SVD method rather than the more complex Funk variant, so we get
 $$\hat{b}_{u,i} = \sum_{j=1}^{J} p_{u,j}q_{i,j}$$
 
-The final prediction was made by applying the clipping function, $\kappa()$.
+The final prediction was made by applying the clipping function, $\kappa()$.  
 $$
 \hat{y}_{u,i,t} = \kappa \Big\rvert_{0.5}^{5.0}( \hat{\mu} + \hat{b}_{i} + \hat{b}_{u} + \hat{b}_{i,t} + \hat{b}_{u,t} + \hat{b}_{u,g} + \hat{b}_{u,i} )
 $$
 
 ### Training the Model
-We deconstructed the `edx` set to do our exploration and initial training, so we now need to reconstitute it.
+We deconstructed the `edx` set to do our exploration and initial training, so we now need to reconstitute it.  
 ```{r edxReconstitution, warning=FALSE, message=FALSE, cache=TRUE}
   # Re-construct edx after our data exploration and model building
   test <- test %>% select(userId, movieId, rating, timestamp, title, year, 
@@ -2050,8 +2087,8 @@ We deconstructed the `edx` set to do our exploration and initial training, so we
   rm(test,train)
 ```
 
-Then we can begin to calculate the various elements of the blend, starting with the estimated mean, $\hat{\mu}$. For all of the training parameters that are not based on matrix factorization, we will use cross-validation with the `edx` train:test ratio at 9:1.  
-```{r TrainFullModel, echo=FALSE, cache=TRUE}
+Then we can begin to calculate the various elements of the blend, starting with the estimated mean, $\hat{\mu}$. For all of the training parameters that are not based on matrix factorization, we will use cross-validation with the `edx` train:test ratio at 9:1.    
+```{r TrainFullModel, echo=FALSE, cache=TRUE, message=FALSE, warning=FALSE}
   # Function to train the model's non-matrix-factorization parameters
   TrainFullModel <- function(){
     test_index_temp <- createDataPartition(y = edx$rating, times = 1, 
@@ -2175,7 +2212,7 @@ Then we can begin to calculate the various elements of the blend, starting with 
         pull(prediction)
       return( RMSE(test_temp$rating, predicted_ratings))
     })
-    #qplot(lambdas, regularized_rmses)
+
     error <- min(regularized_rmses)  
     L_ut <- lambdas[which.min(regularized_rmses)]
 
@@ -2243,7 +2280,7 @@ Then we can begin to calculate the various elements of the blend, starting with 
   }
 ```
 
-```{r crossValidateFinal, cache=TRUE}
+```{r crossValidateFinal, cache=TRUE, message=FALSE, warning=FALSE}
   # Re-set the seed before we begin the final training
   set.seed(1234, sample.kind="Rounding")
 
@@ -2255,7 +2292,7 @@ Then we can begin to calculate the various elements of the blend, starting with 
   cv_results <- as.data.frame(t(matrix(unlist(cv_results), ncol=B)))
 ``` 
 
-We use the parameters trained on the full `edx` set to create the individual components of the final prediction and create a `residual` for the `edx` set.
+We use the parameters trained on the full `edx` set to create the individual components of the final prediction and create a `residual` for the `edx` set.  
 
 ```{r buildLinearPredictionPieces, echo = FALSE, cache=TRUE}
   # Save the previously trained parameters for use in the final model  
@@ -2329,17 +2366,16 @@ We use the parameters trained on the full `edx` set to create the individual com
 
 
 ```{r ListOfParams, echo=FALSE, cache=TRUE}
-  knitr::kable(data.frame( Parameter = c("$L_i$", "$L_u$", "$L_{i,t}$", 
-                                         "$L_{u,t}$", "$L_{u,g}$"),
+  knitr::kable(data.frame( Parameter = c("L_i", "L_u", "L_it", 
+                                         "L_ut", "L_ug"),
                             Value = c(L_i, L_u, L_it, L_ut, L_ug) ),
-                            align = c('l','l'),
-                            format = 'latex',
-                            linesep = "",
-                            caption = "Final Model Parameters for 
-                                        Regularized Elements")
+                align = c('l','l'),
+                format = 'latex',
+                linesep = "",
+                caption = "Final Model Parameters for Regularized Elements")
 ```
 
-We have now trained all parameters of the model up to the matrix factorization models. The matrix factorization models are too computationally intensive to perform multiple times, though we would likely improve our results with cross-validation. However, with limitations in our computing resources, we will use the previously trained parameters for the final, full `edx` model.
+We have now trained all parameters of the model up to the matrix factorization models. The matrix factorization models are too computationally intensive to perform multiple times, though we would likely improve our results with cross-validation. However, with limitations in our computing resources, we will use the previously trained parameters for the final, full `edx` model.  
 
 ```{r edxSVDF, cache=TRUE, echo=TRUE, message=FALSE, error=FALSE}
   # Calculate regularized average rating per user, per genre combination 
@@ -2392,7 +2428,7 @@ We have now trained all parameters of the model up to the matrix factorization m
      user_mus, x, x_pred, predicted_ratings, i)
 ```
 
-We can now calculate the SVD matrix factorization components.
+We can now calculate the SVD matrix factorization components.  
 
 ```{r SVDFull, echo=TRUE, message=FALSE, warning=FALSE,error=FALSE}
   # Create realRatingMatrix of userId vs movieId, filled with rating residuals
@@ -2471,12 +2507,12 @@ We can now calculate our final loss function value,
 
 # Conclusion
 
-The recommender system we constructed had a final $RMSE$ of $0.8228107$. The final model was trained with $5x$ cross-validation on the entire `edx` set, with regularized baseline effects for average rating for each user, average rating for each movie, average rating for each movie in each year after its release date, average rating for each user for each hour of the day, and average rating for each user for each genre combination, each regularized to penalize low sample size. User/genre interaction was further predicted with the Simon Funk variant of Singular Value Decomposition (FSVD or SVDF) with the user/genre averages as the input values and `recommenderlab`'s default training parameters except for our trained values of $\gamma = 0.025, K = 12$. The final piece of the recommender was the user/movie interaction, which we estimated with straight Singular Value Decomposition and a trained value of $K = 80$. Both matrix factorization models were trained with $1x$ cross-validation on `edx`. The final prediction was coerced to the known data range for ratings of $\{0.5,5.0\}$ by just assigning values that were out of range to the nearest in-bounds value. We refer to this clipping function as $\kappa()$ in the text.   
+The recommender system we constructed had a final $RMSE$ of $0.8228107$. The final model was trained with $5x$ cross-validation on the entire `edx` set, with regularized baseline effects for average rating for each user, average rating for each movie, average rating for each movie in each year after its release date, average rating for each user for each hour of the day, and average rating for each user for each genre combination, each regularized to penalize low sample size. User/genre interaction was further predicted with the Simon Funk variant of Singular Value Decomposition (FSVD or SVDF) with the user/genre averages as the input values and `recommenderlab`'s default training parameters except for our trained values of $\gamma = 0.025, K = 12$. The final piece of the recommender was the user/movie interaction, which we estimated with straight Singular Value Decomposition and a trained value of $K = 80$. Both matrix factorization models were trained with $1x$ cross-validation on `edx`. The final prediction was coerced to the known data range for ratings of $\{0.5,5.0\}$ by just assigning values that were out of range to the nearest in-bounds value. We refer to this clipping function as $\kappa()$ in the text.    
 
-While the final $RMSE$ of $0.8228107$ was a very good result, there is still plenty of room for improvement. There were multiple baseline effects that we could have pursued further, such as user rating drift over time and sudden changes in rating frequency. Additionally, we could do more training on the two matrix factorization elements, and we chose not to do the extra training due to the computing resources required to calculate and evaluate multiple large matrices. The initial work on this analysis was done on a system with 8GB of RAM and a Funk SVD model that was trained early in the process took more than eight hours to run on that machine and crashed the `R` session if cleanup was not diligently performed before the calculation was attempted. The rest of the analysis was done on a platform with 62 Gigabytes of RAM. We note that just the `rec` object that is the output of the user/movie matrix factorization operation with `recommenderlab` is more than 55 Megabytes and multiple variables produced in this model are in excess of 1GB each. In short, with these large data objects, swap space and the time required to swap data becomes limiting. If we were going to do this analysis on a platform similar to a small laptop, we would need to explore other ways to handle large data, such as keeping our variables on disk rather than in RAM and working with just small chunks at a time. `R` does have multiple tools for handling these types of problems, but they weren't really covered in the course material and we didn't explore them in this analysis. 
+While the final $RMSE$ of $0.8228107$ was a very good result, there is still plenty of room for improvement. There were multiple baseline effects that we could have pursued further, such as user rating drift over time and sudden changes in rating frequency. Additionally, we could do more training on the two matrix factorization elements, and we chose not to do the extra training due to the computing resources required to calculate and evaluate multiple large matrices. The initial work on this analysis was done on a system with 8GB of RAM and a Funk SVD model that was trained early in the process took more than eight hours to run on that machine and crashed the `R` session if cleanup was not diligently performed before the calculation was attempted. The rest of the analysis was done on a platform with 62 Gigabytes of RAM. We note that just the `rec` object that is the output of the user/movie matrix factorization operation with `recommenderlab` is more than 55 Megabytes and multiple variables produced in this model are in excess of 1GB each. In short, with these large data objects, swap space and the time required to swap data becomes limiting. If we were going to do this analysis on a platform similar to a small laptop, we would need to explore other ways to handle large data, such as keeping our variables on disk rather than in RAM and working with just small chunks at a time. `R` does have multiple tools for handling these types of problems, but they weren't really covered in the course material and we didn't explore them in this analysis.  
 
-We also could have explored more of the neighborhood and clustering models presented in the course material. We noted that the `R` implementation of k-nearest neighbors will throw an error when we attempt to do an analysis with more than fifty five levels in a factorized response variable. A search through online forums suggests a solution to this problem is to edit the source code and recompile from source. We concluded that this was beyond the scope of the current analysis, even though neighborhood techniques seem to be an intuitively good fit for this type of recommender system. It seems that we should be able to cluster users and movies into groups with similar ratings and if users Billy and Bob have similar ratings for many movies, and Billy has rated a movie highly that Bob has not rated, then Bob is likely to also rate that movie highly. In essence, we are performing a similar task with matrix factorization, but it initially seemed that Random Forest or K-Nearest Neighbor techniques could also work well. We note that all of the Netflix Prize solutions we have referenced dealt with matrix factorization techniques and opted not to use decision tree techniques.
+We also could have explored more of the neighborhood and clustering models presented in the course material. We noted that the `R` implementation of k-nearest neighbors will throw an error when we attempt to do an analysis with more than fifty five levels in a factorized response variable. A search through online forums suggests a solution to this problem is to edit the source code and recompile from source. We concluded that this was beyond the scope of the current analysis, even though neighborhood techniques seem to be an intuitively good fit for this type of recommender system. It seems that we should be able to cluster users and movies into groups with similar ratings and if users Billy and Bob have similar ratings for many movies, and Billy has rated a movie highly that Bob has not rated, then Bob is likely to also rate that movie highly. In essence, we are performing a similar task with matrix factorization, but it initially seemed that Random Forest or K-Nearest Neighbor techniques could also work well. We note that all of the Netflix Prize solutions we have referenced dealt with matrix factorization techniques and opted not to use decision tree techniques.  
 
-One interesting result was the lack of performance-boosting from our clipping techniques. The Funk SVD method uses a sigmoid style of clipping to shrink the predictions back from the outer bounds of the prediction space, and this seems to make sense from a logical perspective. We noted that our predicted ratings contained out-of-bounds values after just the calculation of the user and movie effects, and by feeding the out-of-bounds residuals into the calculation of the next effect, we should have been amplifying our error. However, we noted that both of the clipping methods we tried, even with training, did not improve our performance very much, if at all, and in some cases the clipping procedure contributed very negatively to performance. This was the justification for only applying clipping as the final step, when it would be mathematically guaranteed to improve performance because we do know the range of ratings in the `validation` set, though we know very little else about the ratings in that set. We did not test or train intermediary clipping on all elements of the model, however, so more work could be done to ascertain if intermediary clipping might have been beneficial in some cases. 
+One interesting result was the lack of performance-boosting from our clipping techniques. The Funk SVD method uses a sigmoid style of clipping to shrink the predictions back from the outer bounds of the prediction space, and this seems to make sense from a logical perspective. We noted that our predicted ratings contained out-of-bounds values after just the calculation of the user and movie effects, and by feeding the out-of-bounds residuals into the calculation of the next effect, we should have been amplifying our error. However, we noted that both of the clipping methods we tried, even with training, did not improve our performance very much, if at all, and in some cases the clipping procedure contributed very negatively to performance. This was the justification for only applying clipping as the final step, when it would be mathematically guaranteed to improve performance because we do know the range of ratings in the `validation` set, though we know very little else about the ratings in that set. We did not test or train intermediary clipping on all elements of the model, however, so more work could be done to ascertain if intermediary clipping might have been beneficial in some cases.  
 
-Overall, this was a good exercise in the construction of a recommender system with matrix factorization. We have demonstrated that matrix factorization is a very powerful and elegant tool and is especially useful when we have missing data in a relational matrix, such as the movie-user matrix we constructed in the analysis. We further demonstrated that matrix factorization is very powerful when we have large datasets because it allows us to reduce dimensionality while simultaneously making a large number of predictions for the missing data. In all, matrix factorization is a wonderful tool to add to our machine learning toolbox.
+Overall, this was a good exercise in the construction of a recommender system with matrix factorization. We have demonstrated that matrix factorization is a very powerful and elegant tool and is especially useful when we have missing data in a relational matrix, such as the movie-user matrix we constructed in the analysis. We further demonstrated that matrix factorization is very powerful when we have large datasets because it allows us to reduce dimensionality while simultaneously making a large number of predictions for the missing data. In all, matrix factorization is a wonderful tool to add to our machine learning toolbox.  
