@@ -1,0 +1,16 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.rdb
+.rdx
+
+ # Ignore cache
+ MovieLensWriteup_cache
+ 
+ # Ignore writeup files
+ MovieLensWriteup_files
+ 
+ # Ignore raw data folder
+ ml-10M100K
+ 
