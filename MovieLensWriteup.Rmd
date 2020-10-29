@@ -58,9 +58,7 @@ The data provided to us for our version of the Netflix Prize task is from the Gr
 
 ## Details of the 10M Dataset
 
-The MovieLens 10M Dataset is considered to be, as previously mentioned, a stable benchmark set and was released January 2009. According to the README file, \footnote{http://files.grouplens.org/datasets/movielens/ml-10m-README.html} the data are contained in three UTF-8 encoded files of the formats in Table \ref{tab:fileFormats}. Each row of the `ratings.dat` file represents one rating by one user, ordered by `UserID` then `MovieID`. Each rating is on a 5-star scale, with half-star increments, and the `Timestamp` is measured in seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970, or seconds since the epoch. While the `tags.dat` file contains information that could potentially be very useful in predicting user ratings, the instructions for this capstone project explicitly say to develop the algorithm using the `edx` dataset, which we will generate from code provided to us in the course materials. That dataset does not include any of the information encoded in the `tags.dat` file, so we will not consider it to be part of our analysis here. Finally, the individual movies are given a distinct `MovieID` that is linked to a `Title` and a `Genres` list. The title should be entered in the Internet Movie Database (IMDb) style, including year of release in parentheses. Genres are provided in a pipe-separated list selected from the options in Table \ref{tab:GenrePossibles}. However, the README file states that these movie titles are entered manually, so we can't presume that any of the dataset variables will be error-free or uniformly encoded. So, let's dive in and explore the data. 
-
-
+The MovieLens 10M Dataset is considered to be, as previously mentioned, a stable benchmark set and was released January 2009. According to the README file, \footnote{http://files.grouplens.org/datasets/movielens/ml-10m-README.html} the data are contained in three UTF-8 encoded files of the formats in the table below. 
 
 ```{r fileFormats, echo = FALSE}
 knitr::kable(data.frame( File = c("ratings.dat", "tags.dat", "movies.dat"),
@@ -72,6 +70,8 @@ knitr::kable(data.frame( File = c("ratings.dat", "tags.dat", "movies.dat"),
              linesep = "",
              caption = 'MovieLens 10M Database File Names and Formats')
 ```
+
+Each row of the `ratings.dat` file represents one rating by one user, ordered by `UserID` then `MovieID`. Each rating is on a 5-star scale, with half-star increments, and the `Timestamp` is measured in seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970, or seconds since the epoch. While the `tags.dat` file contains information that could potentially be very useful in predicting user ratings, the instructions for this capstone project explicitly say to develop the algorithm using the `edx` dataset, which we will generate from code provided to us in the course materials. That dataset does not include any of the information encoded in the `tags.dat` file, so we will not consider it to be part of our analysis here. Finally, the individual movies are given a distinct `MovieID` that is linked to a `Title` and a `Genres` list. The title should be entered in the Internet Movie Database (IMDb) style, including year of release in parentheses. Genres are provided in a pipe-separated list selected from the options in the table below.  
 
 ```{r GenrePossibles, echo = FALSE}
 knitr::kable(list(c("Action","Adventure","Animation","Children's","Comedy"),
@@ -87,7 +87,7 @@ knitr::kable(list(c("Action","Adventure","Animation","Children's","Comedy"),
              caption = 'MovieLens 10M Genre Options from README file')
 ```
 
-
+However, the README file states that these movie titles are entered manually, so we can't presume that any of the dataset variables will be error-free or uniformly encoded. So, let's dive in and explore the data.  
 
 # Methods
 
@@ -213,7 +213,7 @@ and number of distinct users.
   n_distinct(train$userId)
 ```
 
-A histogram of `userId`, Figure \ref{fig:VarHistograms} shows us that frequency of ratings is fairly level across the range of `userId`, with the possible exception of the very last bin, so we have relative confidence that there is no underlying structure to the variable that will interfere with our machine learning tasks. Closer inspection of the last bin reveals that the range doesn't extend to the end of the range of that bin, so we expect that bin to contain fewer ratings.
+A histogram of `userId`, shown below, shows us that frequency of ratings is fairly level across the range of `userId`, with the possible exception of the very last bin, so we have relative confidence that there is no underlying structure to the variable that will interfere with our machine learning tasks. Closer inspection of the last bin reveals that the range doesn't extend to the end of the range of that bin, so we expect that bin to contain fewer ratings.
 
 ```{r VarHistograms, echo=FALSE, warning=FALSE, error=FALSE, fig.cap="(A) Histogram of userId. Level frequency across the range of userId suggests no underlying structure to the variable. (B) Histogram of movieId. The majority of ratings are almost entirely from the first 10,000 movie IDs. (C) Histogram of rating. Shows a higher frequency for natural numbers, or whole-valued ratings, with the majority of ratings in the \"3\" or \"4\" levels. (D) Histogram of timestamp. Shows some potential underlying structure with rating activity varying over time."}
   
@@ -224,7 +224,7 @@ A histogram of `userId`, Figure \ref{fig:VarHistograms} shows us that frequency 
     geom_histogram(fill = "white", color = "black", bins=30) +
     labs(title = "B Histogram of Movie IDs")
   p3 <- ggplot(train, aes(x = rating)) + 
-    geom_histogram(fill = "white", color = "black", bins=10) +
+    geom_histogram(fill = "white", color = "black", bins=20) +
     labs(title = "C Histogram of Ratings")
   p4 <- ggplot(train, aes(x = year(as_datetime(timestamp)))) +
     geom_histogram(fill = "white", color = "black", bins=30) +
@@ -249,7 +249,7 @@ with the number of distinct users found with
 n_distinct(train$movieId) 
 ```
 
-A histogram of `movieId`, Figure \ref{fig:VarHistograms}, shows that the majority of ratings are from the first ten thousand movie ID numbers. This will warrant further investigation into the relationship between release year or `timestamp` and `movieId` under the assumption that `movieId` is assigned with respect to release year or perhaps by number of ratings.
+A histogram of `movieId` shows that the majority of ratings are from the first ten thousand movie ID numbers. This will warrant further investigation into the relationship between release year or `timestamp` and `movieId` under the assumption that `movieId` is assigned with respect to release year or perhaps by number of ratings.
 
 
 #### `rating`  
@@ -268,7 +268,7 @@ And the standard deviation with
   sd(train$rating)
 ```
 
-A histogram of the `rating` variable, as seen in Figure \ref{fig:VarHistograms} reveals that the majority of ratings are either 3's or 4's. The single most probable rating is a 4, but we'll see that the selection of our loss function will drive our choice of the first term in a linear model toward the average rating rather than the most likely rating. Having noted that the actual data is discrete, we will therefore consider coercing our predicted ratings to fall within the range of `rating` and possibly to also coerce it to take on half-rating values, as well.
+A histogram of the `rating` variable reveals that the majority of ratings are either 3's or 4's. The single most probable rating is a 4, but we'll see that the selection of our loss function will drive our choice of the first term in a linear model toward the average rating rather than the most likely rating. Having noted that the actual data is discrete, we will therefore consider coercing our predicted ratings to fall within the range of `rating` and possibly to also coerce it to take on half-rating values, as well.
 
 
 #### `timestamp`  
@@ -279,7 +279,7 @@ We see the range of timestamps and the human-readable version with
   as_datetime(range(train$timestamp))
 ```
 
-When we look at a histogram of `timestamp`, as in Figure \ref{fig:VarHistograms}, we see that there are time periods of high rating activity and periods of low activity. This suggests there may be underlying structure to the `timestamp` variable.
+When we look at a histogram of `timestamp` we see that there are time periods of high rating activity and periods of low activity. This suggests there may be underlying structure to the `timestamp` variable.
 
 #### `genres`  
 When we look at the `genres` variable, we expect to find a pipe-separated character string with the possible values listed in the README file. The results of the following code show that our assumption does not hold. There are values in the dataset that are not in the `README` file, so we will need to extract the genres from the file rather than use the values provided by the dataset's README file.
@@ -365,7 +365,7 @@ We can further examine the information contained in the `genres` variable by cre
   genres_list[genres_list == "(no genres listed)"] = "None"
 ```  
   
-Now we can examine each genre and we'll begin by just looking at the prevalence of each genre within the dataset, as in Figure \ref{fig:genrePrev}.
+Now we can examine each genre and we'll begin by just looking at the prevalence of each genre within the dataset, as shown below.
 
 ```{r genrePrev, echo=FALSE, cache=TRUE, fig.height=3, fig.cap="(A) Prevalence of Genres in train dataset.  (B) Histogram of Release Year"}
   # Calculate the prevalence of each genre in the train set
@@ -396,13 +396,13 @@ Now that we've created a predictor from the release year, we can also examine th
   range(train$year)
 ```
 
-Figure \ref{fig:genrePrev} shows a majority of movies in this dataset were released in the 1990s. We will need to be aware of this underlying structure in the `year` variable if we choose to use it as a predictor.
+The figure above shows a majority of movies in this dataset were released in the 1990s. We will need to be aware of this underlying structure in the `year` variable if we choose to use it as a predictor.
 
 
 ### Data Exploration: Sparsity
-Now that we are familiar with the basic structure of our data, we can start to explore how the various available predictors are correlated with `rating`. We intuitively expect our `rating` to be an interaction of `movieId` and `userId` because we assume that the rating a user gives a movie is an indication of how much that user likes that movie. But examination of the interaction between `userId`, `movieId` and `rating` reveals that there is a great deal of sparsity, meaning that not all users rate all movies. In Figure \ref{fig:sparseUserMovieImage} we examine one hundred movies and one hundred users chosen at random. We introduce the `recommenderlab` package referenced by the course material and use its `image` function as an elegant way to display this type of sparse matrix. We note that even though we created a matrix with a random sample of dimension 100x100, our resultant matrix is smaller. This is because we happened to select user/movie combinations for which there were no ratings. The missing rows and columns in this randomly selected image highlight the sparsity of the data.
+Now that we are familiar with the basic structure of our data, we can start to explore how the various available predictors are correlated with `rating`. We intuitively expect our `rating` to be an interaction of `movieId` and `userId` because we assume that the rating a user gives a movie is an indication of how much that user likes that movie. But examination of the interaction between `userId`, `movieId` and `rating` reveals that there is a great deal of sparsity, meaning that not all users rate all movies. In the figure below, we examine one hundred movies and one hundred users chosen at random. We introduce the `recommenderlab` package referenced by the course material and use its `image` function as an elegant way to display this type of sparse matrix. We note that even though we created a matrix with a random sample of dimension 100x100, our resultant matrix is smaller. This is because we happened to select user/movie combinations for which there were no ratings. The missing rows and columns in this randomly selected image highlight the sparsity of the data.
 
-```{r sparseUserMovieImage, fig.height=3, fig.cap="Image constructed from one hundred users and movies randomly sampled from the training dataset. There were entire rows and columns with no data because we didn't explicitly select movie and user combinations that were known to have ratings. It is possible to select a subset of users and movies from this datset such that the entire matrix is comprised of NAs."}
+```{r sparseUserMovieImage, fig.height=4, fig.cap="Image constructed from one hundred users and movies randomly sampled from the training dataset. There were entire rows and columns with no data because we didn't explicitly select movie and user combinations that were known to have ratings. It is possible to select a subset of users and movies from this datset such that the entire matrix is comprised of NAs."}
   # To use many of the recommenderlab functions, we need to convert our data to a
   # realRatingMatrix format, ie a matrix with items as columns and users as rows
 
@@ -424,7 +424,8 @@ Now that we are familiar with the basic structure of our data, we can start to e
   rm( y )
 ```
 
-We might then ask how many of our users rated just one movie or how many movies received just one rating. We find that there were no users rating just a single movie, but there were several who rated just ten, and there were many movies with just a single rating. Further, we see from Figure \ref{fig:movieUserCountHist} that there are many users with just a few ratings and many movies with just a few ratings.
+We might then ask how many of our users rated just one movie or how many movies received just one rating. We find that there were no users rating just a single movie, but there were several who rated just ten, and there were many movies with just a single rating. Further, we see from the figure below that there are many users with just a few ratings and many movies with just a few ratings.  
+
 Users with few ratings
 ```{r}
   train %>% group_by(userId) %>% 
@@ -635,7 +636,7 @@ We find that our average error for very low numbers of ratings per movie is only
 
 
 ## Regularization
-The regularization scheme used in the BellKor solution and in the coursework penalized large values of $b_{u}$ and $b_{i}$ when the corresponding number of ratings was small. The coursework minimized $RMSE$ for both $\hat{b}_u$ and $\hat{b}_{i}$ simultaneously. We will decouple the user and movie effects, as seen in \ref{fig:regularizationMovieandUser}, in part because we will want to perform some regularization on other estimates for additional effects and it will become very cumbersome to try to regularize all of the terms simultaneously.  
+The regularization scheme used in the BellKor solution and in the coursework penalized large values of $b_{u}$ and $b_{i}$ when the corresponding number of ratings was small. The coursework minimized $RMSE$ for both $\hat{b}_u$ and $\hat{b}_{i}$ simultaneously. We will decouple the user and movie effects, as seen in the following figure, in part because we will want to perform some regularization on other estimates for additional effects and it will become very cumbersome to try to regularize all of the terms simultaneously.  
 
 ```{r regularizationMovie, echo=TRUE, warning=FALSE, message=FALSE}
   lambdas <- seq(0.5,4,0.25)
@@ -783,7 +784,7 @@ The sigmoid clipping procedure takes the basic form of a generalized logistic fu
 $$
 G(x) = A + \frac{K-A}{(1 + Qe^{-Bx})^{1/v}}
 $$
-With the variables explained in Table \ref{tab:SigmaVarsExplained} and expressed in the following `R` function.  
+With the variables explained in the table below and expressed in the following `R` function.  
 ```{r SigmaFunc}
   SigmaFunc <- function(x, B = 1, A = 0.5-mu, K = 5-mu, nu = 2){
      Q = (1 - (K/A))^nu - 1
@@ -807,9 +808,9 @@ knitr::kable(data.frame( Effect = c("$A$", "$K$", "$B$",
                          escape=FALSE)
 ```
 
-We take a look at the general performance of these two clipping functions in Figure \ref{fig:ClippingFuncsCompared}.  
+We take a look at the general performance of these two clipping functions below.  
 
-```{r ClippingFuncsCompared, echo=FALSE, fig.height=3, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."}
+```{r ClippingFuncsCompared, echo=FALSE, fig.height=4, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."}
   data.frame( xs = seq(-6,5,0.1)) %>%
     mutate( simpleClip = SimpleClip(xs,UB = 2.5, LB = -3),
             sigmaClip1 = SigmaFunc(xs, B=0.1, A = -3, K = 2.5, nu = 2),
@@ -834,7 +835,7 @@ We take a look at the general performance of these two clipping functions in Fig
     ggtitle("Clipping Methods Mapped to Original Value, Varying B")
 ```
 
-Then we can test our estimated error with each of the two clipping functions, beginning with the simpler transformation. Because we have chosen to decouple regularization of $\hat{b}_i$ and $\hat{b}_u$, we must re-calculate the regularization term $\lambda_u$ after evaluating the clipping function for $\hat{b}_i$. The regularization code is given below, with results in Figure \ref{figSigmoidalClippingMovieUser}.
+Then we can test our estimated error with each of the two clipping functions, beginning with the simpler transformation. Because we have chosen to decouple regularization of $\hat{b}_i$ and $\hat{b}_u$, we must re-calculate the regularization term $\lambda_u$ after evaluating the clipping function for $\hat{b}_i$. The regularization code is given below, with results in the figure that follows.
 
 ```{r SimpleClipRMSE}
 lambdas <- seq(2.5,6,0.25)
@@ -974,7 +975,7 @@ $$
 
 ## Temporal Effects
 
-The "BellKor" portion of the prize-winning Netflix Challenge team noted that temporal effects were a significant predictor of the baseline rating. We have two raw temporal predictors, `timestamp` and `year`. These allow us to examine release year, the day of rating, and the age of the movie at the day of rating for possible temporal effects. We can also potentially examine long-term drift in ratings by individual users, as well as seasonal or circadian patterns for ratings, as in Figure \ref{fig:tempAge}.  
+The "BellKor" portion of the prize-winning Netflix Challenge team noted that temporal effects were a significant predictor of the baseline rating. We have two raw temporal predictors, `timestamp` and `year`. These allow us to examine release year, the day of rating, and the age of the movie at the day of rating for possible temporal effects. We can also potentially examine long-term drift in ratings by individual users, as well as seasonal or circadian patterns for ratings, as shown below.  
 
 ```{r tempYear, echo=FALSE}
   # Plot average rating by release year
@@ -989,9 +990,9 @@ The "BellKor" portion of the prize-winning Netflix Challenge team noted that tem
 It does appear that the year of release has an effect on ratings, but it also is correlated with the number of ratings. We see there are many fewer ratings for very early movies, and those ratings tend to be higher. There is also a dip in ratings that correlates with an increase in the number of movies rated, somewhere in the mid- to late-nineties. We found that most timestamps were also from the mid- to late-nineties, so we can examine how this effect differs when we look at the age of the movie at the time it was rated.  
 
 ### Age of Movie at Rating Effect
-We can also examine how ratings change with the age of the movie. If we find the average ratings of all movies of the same age in the dataset, we get the plot in Figure \ref{fig:tempAge}.  
+We can also examine how ratings change with the age of the movie. If we find the average ratings of all movies of the same age in the dataset, we get the plot below.  
 
-```{r tempAge, echo=FALSE, fig.height=3, fig.cap="Average rating for movies by release year and by age of movie at the time of rating."}
+```{r tempAge, echo=FALSE, fig.height=4, fig.cap="Average rating for movies by release year and by age of movie at the time of rating."}
   # Plot age of movie at rating against average rating for that age
   p2 <- train %>%
     mutate( Age = year(timestamp) - year) %>%
@@ -1050,9 +1051,9 @@ We see that there is an age effect, though it appears complex. There is a spike 
              RMSE = RMSE(test$rating, predicted_ratings ))
 ```
 
-What if we group this age effect by movie as well as by age. Do we observe an improved prediction when we estimate the rating based on the specific movie, as in Figure \ref{fig:PlotAgeByMovieEffect}.   
+What if we group this age effect by movie as well as by age. Do we observe an improved prediction when we estimate the rating based on the specific movie, as shown in the figure.   
 
-```{r PlotAgeByMovieEffect, echo = FALSE, fig.height=3, fig.cap="Rating averages grouped by both movie age and user."}
+```{r PlotAgeByMovieEffect, echo = FALSE, fig.height=4, fig.cap="Rating averages grouped by both movie age and user."}
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
   movieIds <- train %>% group_by(movieId) %>% 
     summarize(n = n()) %>% 
@@ -1088,7 +1089,7 @@ We see that not all movie ratings are dependent on age at the time of rating in 
              RMSE = RMSE(test$rating, predicted_ratings ))
 ```
 
-If we regularize the movie effect, as grouped by age and user, we get a regularization curve as seen in Figure \ref{fig:AgeEffectByMovieAndAgeRegularized}.  
+If we regularize the movie effect, as grouped by age and user, we get a regularization curve as seen below.  
 
 ```{r AgeEffectByMovieAndAgeRegularized, echo = FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.height=3, fig.cap="Regularization curve for movie age effect, grouped by user and age of movie at time of rating."}
   library(data.table)  # ensures data.table::nafill works when cached
@@ -1179,7 +1180,7 @@ We observe that predicting a rating based on the average age of the movie at the
 
 
 ### Circadian Effect
-Humans can be strongly influenced by their circadian rhythms. Time of day can affect many predictors of decision-making, from mood to impulse control. The average rating by time of day for all user is shown in Figure \ref{fig:circadianEffect}.  
+Humans can be strongly influenced by their circadian rhythms. Time of day can affect many predictors of decision-making, from mood to impulse control. The average rating by time of day for all user is shown in the following figure.  
 
 ```{r circadianEffect, echo = FALSE, fig.height=4, fig.cap="Average rating by time of day for all users. The total number of ratings at that hour of day is given by the point size. Note that the y axis only covers plus or minus 0.1 rating points. This suggests little predictive power in time of day."}
   train %>% mutate( hour = hour(timestamp)) %>%
@@ -1194,9 +1195,9 @@ Humans can be strongly influenced by their circadian rhythms. Time of day can af
     theme(legend.position = "bottom")
 ```
 
-The result suggests there is no predictive power in the hour at which a rating was made. It does tell us that few ratings were created in the mid-morning hours, but that isn't particularly surprising since that would correlate with school and work hours. The hour of rating does not allow ratings to be clustered when viewed as a communal effect. However, when viewed as a user effect, as in Figure \ref{fig:circadianByUserPlot}, where we first group our data by user and then by hour of the day, we see that there are large differences in individual user's rating behavior with respect to time of day. A similar effect was mentioned by the "BellKor" team in their explanation, though they looked more at spikes or rating frequency changes as a function of linear time. They postulated that these effects could be caused by multiple users generating ratings under a single `userId`. We could further postulate that it could also be a true circadian effect observed for a single user, in which some activity or biological state is correlated with negative ratings, such as lack of sleep or low blood sugar, while another state is correlated with positive ratings.  Whatever the underlying cause, we see that putting all users into one bag would fail to leverage differences in rating patterns by time of day, so we explore how these differences can be added to our blend below.  
+The result suggests there is no predictive power in the hour at which a rating was made. It does tell us that few ratings were created in the mid-morning hours, but that isn't particularly surprising since that would correlate with school and work hours. The hour of rating does not allow ratings to be clustered when viewed as a communal effect. However, when viewed as a user effect, as in the following figure, where we first group our data by user and then by hour of the day, we see that there are large differences in individual user's rating behavior with respect to time of day. A similar effect was mentioned by the "BellKor" team in their explanation, though they looked more at spikes or rating frequency changes as a function of linear time. They postulated that these effects could be caused by multiple users generating ratings under a single `userId`. We could further postulate that it could also be a true circadian effect observed for a single user, in which some activity or biological state is correlated with negative ratings, such as lack of sleep or low blood sugar, while another state is correlated with positive ratings.  Whatever the underlying cause, we see that putting all users into one bag would fail to leverage differences in rating patterns by time of day, so we explore how these differences can be added to our blend below.  
 
-```{r circadianByUserPlot, echo = FALSE, fig.height=3, fig.cap="Average ratings by hour of day for several prolific raters. Rating patterns are not uniform across users."}
+```{r circadianByUserPlot, echo = FALSE, fig.height=4, fig.cap="Average ratings by hour of day for several prolific raters. Rating patterns are not uniform across users."}
   # Set the seed for random selection of users
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
   
@@ -1243,7 +1244,7 @@ We calculate a user effect based on hour of the day using just the average resid
   knitr::kable(results)
 ```
 
-This was a substantial improvement in RMSE. Does regularization make sense here? Are there hours of the day for certain users with so few ratings that the prediction should be penalized? Our data exploration suggests yes, so we should try regularization as in Figure \ref{fig:regularizeCircadianByUser}.  
+This was a substantial improvement in RMSE. Does regularization make sense here? Are there hours of the day for certain users with so few ratings that the prediction should be penalized? Our data exploration suggests yes, so we should try regularization as seen below.  
 
 ```{r regularizeCircadianByUser, echo = FALSE, fig.height=3, fig.cap="Regularization curve for circadian effect grouped by user."}
   # Regularize user temporal effect
@@ -1313,7 +1314,7 @@ We see that regularization has a large effect, so we re-calculate the circadian 
 ```
 
 
-The "BellKor" team also found that rating behavior for each user tended to drift over time. If we look at a random sample of users, as in Figure \ref{fig:driftUserTime}, we see that there are many users who were not very prolific and for whom a longer-term drift effect component is not especially useful. If we were to pursue this strategy, we would have to decide how to treat users without enough data to establish a trend. One potential strategy would be to combine all users to consider on overall trend.   
+The "BellKor" team also found that rating behavior for each user tended to drift over time. If we look at a random sample of users, as shown below, we see that there are many users who were not very prolific and for whom a longer-term drift effect component is not especially useful. If we were to pursue this strategy, we would have to decide how to treat users without enough data to establish a trend. One potential strategy would be to combine all users to consider on overall trend.   
 
 ```{r driftUserTime, warning=FALSE, echo=FALSE, fig.height=4, fig.cap="Drift in user rating over time, by week, for randomly sampled users."}
   set.seed(1234,sample.kind = "Rounding")
@@ -1335,7 +1336,7 @@ The "BellKor" team also found that rating behavior for each user tended to drift
     theme(legend.position = "none", axis.text.x = element_text(angle=45))
 ```
 
-We can observe a slight effect when we combine the data for five hundred randomly chosen users, as in Figure \ref{fig:drift500Users}. However, the effect is very slight, with a slope near zero. Most of the trend slopes for individual users in our plot are close to zero, as well. Additionally, we have already achieved approximately the same RMSE as the winning team for the Netflix Prize, and the computational cost of what we expect to be a very small incremental improvement begins to offer diminishing returns. We could continue to pursue these time-based effects on the user side as future refinements.  
+We can observe a slight effect when we combine the data for five hundred randomly chosen users, as shown below. However, the effect is very slight, with a slope near zero. Most of the trend slopes for individual users in our plot are close to zero, as well. Additionally, we have already achieved approximately the same RMSE as the winning team for the Netflix Prize, and the computational cost of what we expect to be a very small incremental improvement begins to offer diminishing returns. We could continue to pursue these time-based effects on the user side as future refinements.  
 
 ```{r drift500Users, warning=FALSE, echo = FALSE, fig.height=3, fig.cap="Cumulative drift for 500 randomly selected users."}
   # Cumulative drift for 500 random users
@@ -1355,9 +1356,7 @@ We can observe a slight effect when we combine the data for five hundred randoml
 We improved the RMSE between our test and train sets to nearly the same overall value as the winning team for the Netflix Prize just by considering user effects that depended on user and a temporal variable and item effects that depended on item and a temporal variable. We can now begin to consider how users and items interact. Perhaps the most intuitive next step is to group movies into item groups based on information already provided to us, specifically, the `genres` field. We will also attempt to group users and individual items in a later section, but let's begin with the information already codified in the dataset.  
 
 ### Predictions with Raw `genres` Data
-We can look at a random sample of very prolific users and examine how their average ratings change for the most popular genre groups, where each genre group is just the raw genres data treated as a factor and converted to a number. We can see that data represented in Figure \ref{fig:genresRawAvg}. We see that there is some similarity between user's rating patterns, but none have identical patterns. We are only looking at the first ten `genres` and representing more of the raw genre combinations becomes unreadable very quickly as there are more than seven hundred. We can reduce the number of dimensions just by splitting the genres into individual columns and binarizing the data, as we will do after we examine predictions using just the raw `genres` field.  
-
-In the following code chunks, we explore how we can improve our prediction using just the factorized raw genres field, along with regularization. We see that regularization provides a considerable improvement over the unregularized version, and this should not be surprising given that `genres` has more than seven hundred possible values and not all users will have rated even one movie for every genre, much less enough movies to provide real predictive power. For users with few ratings overall, there will be multiple `NA` values, and we can deal with those in a variety of ways. To begin, we predict those `genres` combinations with no ratings in them as zeroes, essentially saying that no information contributes no change in the prediction. We might also consider replacing `NA` values for genres with a slightly negative value, say -0.1, to indicate that a user who has not rated any movies in a `genres` category is assumed not to like movies in that category. This could be a faulty assumption, however, as different users will have different strategies and reasoning when it comes to which movies they rate. Some users may choose to provide only negative ratings for movies they hate, for example, or may like movies in a given genre group reasonably well, but not well enough to make a concerted effort to rate movies in that genre. This could be an area for additional refinement.  
+We can look at a random sample of very prolific users and examine how their average ratings change for the most popular genre groups, where each genre group is just the raw genres data treated as a factor and converted to a number. We can see that data represented in the figure below. We see that there is some similarity between user's rating patterns, but none have identical patterns. We are only looking at the first ten `genres` and representing more of the raw genre combinations becomes unreadable very quickly as there are more than seven hundred. We can reduce the number of dimensions just by splitting the genres into individual columns and binarizing the data, as we will do after we examine predictions using just the raw `genres` field.  
 
 ```{r genresRawAvg, echo=FALSE, warning=FALSE, fig.height = 4, fig.cap="Raw genres as numeric factor vs. the average residual per user for a small random set of prolific users. Some clustering becomes apparent, but there are still far too many variables for this method to be human-readable."}
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
@@ -1380,6 +1379,8 @@ In the following code chunks, we explore how we can improve our prediction using
          title="Raw Genres vs Average Ratings for Several Prolific Users") +
     theme(legend.position = "none")
 ```
+
+In the following code chunks, we explore how we can improve our prediction using just the factorized raw genres field, along with regularization. We see that regularization provides a considerable improvement over the unregularized version, and this should not be surprising given that `genres` has more than seven hundred possible values and not all users will have rated even one movie for every genre, much less enough movies to provide real predictive power. For users with few ratings overall, there will be multiple `NA` values, and we can deal with those in a variety of ways. To begin, we predict those `genres` combinations with no ratings in them as zeroes, essentially saying that no information contributes no change in the prediction. We might also consider replacing `NA` values for genres with a slightly negative value, say -0.1, to indicate that a user who has not rated any movies in a `genres` category is assumed not to like movies in that category. This could be a faulty assumption, however, as different users will have different strategies and reasoning when it comes to which movies they rate. Some users may choose to provide only negative ratings for movies they hate, for example, or may like movies in a given genre group reasonably well, but not well enough to make a concerted effort to rate movies in that genre. This could be an area for additional refinement.  
 
 We calculate the first user/genre effect estimate in the same way we have done for previous estimates, but we find that our $RMSE$ has not improved.  
 
@@ -1406,7 +1407,7 @@ We calculate the first user/genre effect estimate in the same way we have done f
     RMSE = RMSE(test$rating, predicted_ratings)) 
 ```
 
-We try regularizing as we have previously observed that there are many genre combinations for which users have given no ratings. We see that regularization does, indeed, help quite a bit in this case as seen in the regularization curve in Figure \ref{fig:regularizeGenreEffect}.  
+We try regularizing as we have previously observed that there are many genre combinations for which users have given no ratings. We see that regularization does, indeed, help quite a bit in this case as seen in the regularization curve below.  
 
 ```{r regularizeGenreEffect, fig.height=3, fig.cap="Regularization curve for genre effect based on factorized original genres string."}
   lambdas <- seq(7,11,0.5)
@@ -1450,9 +1451,9 @@ with regularization parameter
 We will explore another method for estimating the genre effect before we commit the predictions to our blend.  
 
 ### Predictions with Binarized `genres`
-We created the binarized columns for `genres` in our Data Wrangling section. We can now begin to explore that data by looking at how the residual differs for each of the users in our randomly selected small group. We see in Figure \ref{fig:residualByGenreFiveUsers} that for genres with many ratings by that user, the range within each genre is large, so even if we could predict the residual with just one genre, our error would still be large. The problem is that it doesn't really make sense to predict the residual with one genre when many of the items, or movies, in our dataset belong to more than one genre group, so the residual depends on multiple genre effects. That is why the model proposed in the coursework was a linear combination of the effects of the various genres. The big-data problem of trying to do a linear regression on millions of data points is still restrictive, just as it would be restrictive, in terms of time and computational resources, to do a direct linear regression for `rating` predicted by `userId` and `movieId`. One possible approach is to reduce the number of dimensions. We can see in our data that there is substantial correlation between genres for each user. For example, `Action` and `Adventure` have similar means and distributions for each of the `userIds` even though the distributions differ between users. So we see that we could both reduce the number of dimensions and then perhaps group users together, thereby reducing the size of a user/item matrix in both dimensions. A possible approach would be to do Principal Component Analysis to reduce the number of genres, followed by k-Means Clustering to reduce the number of users into user groups and finally to do a linear model predicting residual based on principal components of genre and user clusters.  
+We created the binarized columns for `genres` in our Data Wrangling section. We can now begin to explore that data by looking at how the residual differs for each of the users in our randomly selected small group. We see in the following figure that for genres with many ratings by that user, the range within each genre is large, so even if we could predict the residual with just one genre, our error would still be large. The problem is that it doesn't really make sense to predict the residual with one genre when many of the items, or movies, in our dataset belong to more than one genre group, so the residual depends on multiple genre effects. That is why the model proposed in the coursework was a linear combination of the effects of the various genres. The big-data problem of trying to do a linear regression on millions of data points is still restrictive, just as it would be restrictive, in terms of time and computational resources, to do a direct linear regression for `rating` predicted by `userId` and `movieId`. One possible approach is to reduce the number of dimensions. We can see in our data that there is substantial correlation between genres for each user. For example, `Action` and `Adventure` have similar means and distributions for each of the `userIds` even though the distributions differ between users. So we see that we could both reduce the number of dimensions and then perhaps group users together, thereby reducing the size of a user/item matrix in both dimensions. A possible approach would be to do Principal Component Analysis to reduce the number of genres, followed by k-Means Clustering to reduce the number of users into user groups and finally to do a linear model predicting residual based on principal components of genre and user clusters.  
 
-```{r residualByGenreFiveUsers, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4, fig.cap="Average residual rating for each genre for five randomly selected users."}
+```{r residualByGenreFiveUsers, echo=FALSE, warning=FALSE, message=FALSE, fig.height=5, fig.cap="Average residual rating for each genre for five randomly selected users."}
   set.seed(1234,sample.kind = "Rounding")
   users <- sample(train$userId, 5)
   
@@ -1518,7 +1519,7 @@ We created the binarized columns for `genres` in our Data Wrangling section. We 
 
 We see that binarizing the `genres` data does not improve our loss function. We should attempt to regularize this model, as well, because we saw that there were many `userId` and individual genre combinations with either few data points or no data.  
 
-We noted that some users have not rated any movies in a particular genre, and very few in others, therefore it might make sense to penalize estimates of these, or regularized on sample size as we have done previously as seen in Figure \ref{fig:GenreRegularization}. For future work, it might also make sense to try filling NAs with something other than 0, perhaps -0.5 or -1 on the assumption that if the user has not rated movies in that genre, they don't like that genre.  
+We noted that some users have not rated any movies in a particular genre, and very few in others, therefore it might make sense to penalize estimates of these, or regularized on sample size as we have done previously as seen in the following figure. For future work, it might also make sense to try filling NAs with something other than 0, perhaps -0.5 or -1 on the assumption that if the user has not rated movies in that genre, they don't like that genre.  
 
 ```{r GenreRegularization, echo=FALSE, warning=FALSE, message=FALSE, cache=TRUE, fig.height=3, fig.cap="Binarized Genre Regularization"}
   lambdas <- seq(0,20,5)
@@ -1564,9 +1565,9 @@ Our resultant $RMSE$ was
   rm( dummy, prediction_genres, predicted_ratings, lambdas, regularized_rmses )
 ```
 
-We didn't improve our loss function with the binarization approach, but we might be able to use the format to create a decision tree or k nearest neighbor model of residual predicted by genres. We examine the heatmap of user vs. genre in Figure \ref{fig:Genres}.  
+We didn't improve our loss function with the binarization approach, but we might be able to use the format to create a decision tree or k nearest neighbor model of residual predicted by genres. We examine the heatmap of user vs. genre in the following figure.  
 
-```{r Genres, message=FALSE, warning=FALSE, fig.cap="Heatmap of binarized genres average rating for several randomly chosen users. Binarized genres with near zero variance are removed and users and genres are clustered by distance. Red color indicates a negative residual and blue indicates a positive residual.}
+```{r Genres, message=FALSE, warning=FALSE, fig.cap="Heatmap of binarized genres average rating for several randomly chosen users. Binarized genres with near zero variance are removed and users and genres are clustered by distance. Red color indicates a negative residual and blue indicates a positive residual."}
   # We can begin by asking which genres are not predictive, or have very little variance over the range of our data
   nzv <- nearZeroVar( 
     sweep(train %>% select(None:Western), 1, train$residual, "*") )
@@ -1950,7 +1951,7 @@ We see that on the small subset of users, SVD had the best performance, and agai
   rm(x)
 ```
 
-We then calculate our prediction. Because of the size of the output matrix, we do this element-wise and only calculate a prediction for a user/movie pair found in the `test` set. Figure \ref{fig:TrainbuiSVD} shows the regularization curve used to minimize $RMSE$ by the number of matrix factor components, or k's.  
+We then calculate our prediction. Because of the size of the output matrix, we do this element-wise and only calculate a prediction for a user/movie pair found in the `test` set. The figure below shows the regularization curve used to minimize $RMSE$ by the number of matrix factor components, or k's.  
 
 ```{r TrainbuiSVD, cache=TRUE, eval = TRUE, warning=FALSE, error=FALSE, fig.height=3, fig.cap="Regularization Curve for SVD number of matrix factor components to minimize RMSE."}
   # Initialize a b_ui to build with a for loop, very un-R-like, but works
@@ -1972,51 +1973,21 @@ We then calculate our prediction. Because of the size of the output matrix, we d
   K_User_Movie_SVD <- ks[which.min(rmses)]  # store best k for final model
   K_User_Movie_SVD
   min(rmses)
-  
+```
+
+# Results
+
+```{r AnalysisResults, echo=FALSE}
+  # Clean up previous chunk
   rm(i, b_ui_SVD)
-```
 
-```{r CalcBuiSVDTrained, cache=TRUE, warning=FALSE, error=FALSE}
-  # Initialized a dummy b_ui - we build it with a for-loop in a very un-R-like
-  # way, but the only way that worked
-  buiSVD <- rep(0,10)
-  
-  # For loop over the rows of test. Calculate b_ui element-wise UdV' but we
-  # can drop the transposition when element-wise
-  for( j in 1:nrow(test)) buiSVD[j] <- 
-        sum( rec@model$svd$u[test$U_index[j], 1:K_User_Movie_SVD ]  * 
-               rec@model$svd$d[1:K_User_Movie_SVD] *
-               rec@model$svd$v[test$V_index[j], 1:K_User_Movie_SVD ])
-  
-  # Add b_ui to test for easier access. Also helps keep user/movie IDs straight
-  test <- test %>% 
-    mutate(b_ui = buiSVD)
-  # Calculate a prediction for the test set
-  test <- test %>%
-    mutate(rating_hat = mu + b_i + b_u + 
-               nafill(b_it, fill = 0) +   #fill NA with 0, ie no effect
-               nafill(b_ut, fill = 0) +
-               nafill(b_ug, fill = 0) +
-               nafill(b_ui, fill = 0)) %>%
-    mutate(rating_hat = SimpleClip(rating_hat, UB=5.0, LB=0.5))
-  
-  # What was our loss function based on this prediction?
-  RMSE(test$rating, test$rating_hat)
-```
-
-The final results of the model development are in Table \ref{tab:resultsBeforeFinal}.  
-
-```{r resultsBeforeFinal, echo=FALSE, cache=TRUE, warning=FALSE, error=FALSE}
   # Add it to the results
   results <- results %>% 
     add_row(method = "User/movie SVD", 
-          RMSE = RMSE(test$rating, test$rating_hat))
+          RMSE = min(rmses))
   
   # Make a nice table
   knitr::kable(results)
-  
-  # Clean up
-  rm(rec, j, buiSVD)
 ```
 
 ## Train the Final Model
@@ -2041,7 +2012,7 @@ knitr::kable(data.frame( Effect = c("$\\mu$", "$b_{i}$", "$b_{u}$",
              escape=FALSE)
 ```
 
-So the final model is a linear combination of the effects in Table \ref{tab:EffectsInBlend} as in the following equation:
+So the final model is a linear combination of the effects as in the following equation:
 
 $$ \hat{y} = \hat{\mu} + \hat{b}_{i} + \hat{b}_{u} + \hat{b}_{i,t} + \hat{b}_{u,t} + \hat{b}_{u,g} + \hat{b}_{u,i} $$
 

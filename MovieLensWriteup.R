@@ -224,7 +224,7 @@ knitr::kable(list(c("Action","Adventure","Animation","Children's","Comedy"),
     geom_histogram(fill = "white", color = "black", bins=30) +
     labs(title = "B Histogram of Movie IDs")
   p3 <- ggplot(train, aes(x = rating)) + 
-    geom_histogram(fill = "white", color = "black", bins=10) +
+    geom_histogram(fill = "white", color = "black", bins=20) +
     labs(title = "C Histogram of Ratings")
   p4 <- ggplot(train, aes(x = year(as_datetime(timestamp)))) +
     geom_histogram(fill = "white", color = "black", bins=30) +
@@ -402,7 +402,7 @@ n_distinct(train$movieId)
 #' ### Data Exploration: Sparsity
 #' Now that we are familiar with the basic structure of our data, we can start to explore how the various available predictors are correlated with `rating`. We intuitively expect our `rating` to be an interaction of `movieId` and `userId` because we assume that the rating a user gives a movie is an indication of how much that user likes that movie. But examination of the interaction between `userId`, `movieId` and `rating` reveals that there is a great deal of sparsity, meaning that not all users rate all movies. In the figure below, we examine one hundred movies and one hundred users chosen at random. We introduce the `recommenderlab` package referenced by the course material and use its `image` function as an elegant way to display this type of sparse matrix. We note that even though we created a matrix with a random sample of dimension 100x100, our resultant matrix is smaller. This is because we happened to select user/movie combinations for which there were no ratings. The missing rows and columns in this randomly selected image highlight the sparsity of the data.
 #' 
-## ----sparseUserMovieImage, fig.height=3, fig.cap="Image constructed from one hundred users and movies randomly sampled from the training dataset. There were entire rows and columns with no data because we didn't explicitly select movie and user combinations that were known to have ratings. It is possible to select a subset of users and movies from this datset such that the entire matrix is comprised of NAs."----
+## ----sparseUserMovieImage, fig.height=4, fig.cap="Image constructed from one hundred users and movies randomly sampled from the training dataset. There were entire rows and columns with no data because we didn't explicitly select movie and user combinations that were known to have ratings. It is possible to select a subset of users and movies from this datset such that the entire matrix is comprised of NAs."----
   # To use many of the recommenderlab functions, we need to convert our data to a
   # realRatingMatrix format, ie a matrix with items as columns and users as rows
 
@@ -810,7 +810,7 @@ knitr::kable(data.frame( Effect = c("$A$", "$K$", "$B$",
 #' 
 #' We take a look at the general performance of these two clipping functions below.  
 #' 
-## ----ClippingFuncsCompared, echo=FALSE, fig.height=3, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."----
+## ----ClippingFuncsCompared, echo=FALSE, fig.height=4, fig.cap="Comparison of clipping transformation functions. $B = 1$, $\\nu = 1.75$ are good choices for our residual data and should perform in a way comparable to the simple clipping function."----
   data.frame( xs = seq(-6,5,0.1)) %>%
     mutate( simpleClip = SimpleClip(xs,UB = 2.5, LB = -3),
             sigmaClip1 = SigmaFunc(xs, B=0.1, A = -3, K = 2.5, nu = 2),
@@ -992,7 +992,7 @@ L_u_simple <- L_u
 #' ### Age of Movie at Rating Effect
 #' We can also examine how ratings change with the age of the movie. If we find the average ratings of all movies of the same age in the dataset, we get the plot below.  
 #' 
-## ----tempAge, echo=FALSE, fig.height=3, fig.cap="Average rating for movies by release year and by age of movie at the time of rating."----
+## ----tempAge, echo=FALSE, fig.height=4, fig.cap="Average rating for movies by release year and by age of movie at the time of rating."----
   # Plot age of movie at rating against average rating for that age
   p2 <- train %>%
     mutate( Age = year(timestamp) - year) %>%
@@ -1053,7 +1053,7 @@ L_u_simple <- L_u
 #' 
 #' What if we group this age effect by movie as well as by age. Do we observe an improved prediction when we estimate the rating based on the specific movie, as shown in the figure.   
 #' 
-## ----PlotAgeByMovieEffect, echo = FALSE, fig.height=3, fig.cap="Rating averages grouped by both movie age and user."----
+## ----PlotAgeByMovieEffect, echo = FALSE, fig.height=4, fig.cap="Rating averages grouped by both movie age and user."----
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
   movieIds <- train %>% group_by(movieId) %>% 
     summarize(n = n()) %>% 
@@ -1197,7 +1197,7 @@ L_u_simple <- L_u
 #' 
 #' The result suggests there is no predictive power in the hour at which a rating was made. It does tell us that few ratings were created in the mid-morning hours, but that isn't particularly surprising since that would correlate with school and work hours. The hour of rating does not allow ratings to be clustered when viewed as a communal effect. However, when viewed as a user effect, as in the following figure, where we first group our data by user and then by hour of the day, we see that there are large differences in individual user's rating behavior with respect to time of day. A similar effect was mentioned by the "BellKor" team in their explanation, though they looked more at spikes or rating frequency changes as a function of linear time. They postulated that these effects could be caused by multiple users generating ratings under a single `userId`. We could further postulate that it could also be a true circadian effect observed for a single user, in which some activity or biological state is correlated with negative ratings, such as lack of sleep or low blood sugar, while another state is correlated with positive ratings.  Whatever the underlying cause, we see that putting all users into one bag would fail to leverage differences in rating patterns by time of day, so we explore how these differences can be added to our blend below.  
 #' 
-## ----circadianByUserPlot, echo = FALSE, fig.height=3, fig.cap="Average ratings by hour of day for several prolific raters. Rating patterns are not uniform across users."----
+## ----circadianByUserPlot, echo = FALSE, fig.height=4, fig.cap="Average ratings by hour of day for several prolific raters. Rating patterns are not uniform across users."----
   # Set the seed for random selection of users
   suppressWarnings(set.seed(1234,sample.kind = "Rounding"))
   
@@ -1453,7 +1453,7 @@ L_u_simple <- L_u
 #' ### Predictions with Binarized `genres`
 #' We created the binarized columns for `genres` in our Data Wrangling section. We can now begin to explore that data by looking at how the residual differs for each of the users in our randomly selected small group. We see in the following figure that for genres with many ratings by that user, the range within each genre is large, so even if we could predict the residual with just one genre, our error would still be large. The problem is that it doesn't really make sense to predict the residual with one genre when many of the items, or movies, in our dataset belong to more than one genre group, so the residual depends on multiple genre effects. That is why the model proposed in the coursework was a linear combination of the effects of the various genres. The big-data problem of trying to do a linear regression on millions of data points is still restrictive, just as it would be restrictive, in terms of time and computational resources, to do a direct linear regression for `rating` predicted by `userId` and `movieId`. One possible approach is to reduce the number of dimensions. We can see in our data that there is substantial correlation between genres for each user. For example, `Action` and `Adventure` have similar means and distributions for each of the `userIds` even though the distributions differ between users. So we see that we could both reduce the number of dimensions and then perhaps group users together, thereby reducing the size of a user/item matrix in both dimensions. A possible approach would be to do Principal Component Analysis to reduce the number of genres, followed by k-Means Clustering to reduce the number of users into user groups and finally to do a linear model predicting residual based on principal components of genre and user clusters.  
 #' 
-## ----residualByGenreFiveUsers, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4, fig.cap="Average residual rating for each genre for five randomly selected users."----
+## ----residualByGenreFiveUsers, echo=FALSE, warning=FALSE, message=FALSE, fig.height=5, fig.cap="Average residual rating for each genre for five randomly selected users."----
   set.seed(1234,sample.kind = "Rounding")
   users <- sample(train$userId, 5)
   
@@ -1973,7 +1973,12 @@ knitr::kable(data.frame( Effect = c("k", "$\\gamma$", "$\\lambda$",
   K_User_Movie_SVD <- ks[which.min(rmses)]  # store best k for final model
   K_User_Movie_SVD
   min(rmses)
-  
+
+#' 
+#' # Results
+#' 
+## ----AnalysisResults, echo=FALSE-------------------------------------------------------------
+  # Clean up previous chunk
   rm(i, b_ui_SVD)
 
   # Add it to the results
