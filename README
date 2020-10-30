@@ -11,9 +11,9 @@ for Harvard's EdX Data Science program.  These files are:
         was omitted where possible.
   
      -- MovieLensWriteup.R  ## R script version created with knitr::purl(filename, documenation=2). 
-       Contains all the same text and code as the *.Rmd version, but in the format of an R 
+       Contains much of the same text and code as the *.Rmd version, but in the format of an R 
        script file, with the explanations and knitr-specific code commented out.  Can be used to 
-       create the final model and all intervening analysis and figures, just as the *.Rmd file.
+       create the final model and all intervening analysis and figures, just like the *.Rmd file.
   
 The code is intended to run on R version 4.0.2 (2020-06-22) "Taking Off Again", tidyverse 1.3.0, 
 ggplot2 3.3.2, dplyr 1.0.2. The code is not guaranteed to be backwards-compatible, so may 
